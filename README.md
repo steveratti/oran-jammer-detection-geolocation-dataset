@@ -19,7 +19,8 @@ Two attack scenarios are provided:
 ### Localization stage
 `MDPI_near_gnb3_Localization/` and `MDPI_near_gnb5_Localization/`
 - `MmWaveSinrTime.txt` — time-series SINR measurements.
-- `UeKpmMeasurements.csv` — KPM measurements (RSRP, RSRQ, RSSI, SINR).
+- `UeKpmMeasurements.csv` — KPM measurements
+- 
 - `gnbs.txt` — gNB identifiers and positions.
 - `ue_position.txt` — ground-truth UE positions.
 - `ue_position_estimated.csv` — estimated UE positions from the localization pipeline.
