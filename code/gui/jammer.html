@@ -1,0 +1,1833 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jammer Scenario Dashboard</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background-color: #0d0d0d;
+            color: #ff8c00;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        #page {
+            width: 100%;
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 12px 16px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        #top-bar h1 {
+            margin: 0;
+            font-size: 22px;
+            color: #ff6666;
+        }
+
+        #back-link {
+            background: #ff8c00;
+            color: #1a1a1a;
+            padding: 10px 14px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .panel {
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 14px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .panel h2 {
+            margin-top: 0;
+            font-size: 18px;
+            color: #ff6666;
+            border-bottom: 2px solid #d32f2f;
+            padding-bottom: 8px;
+        }
+
+        #scenarioForm {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        #scenarioForm label {
+            font-weight: 700;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        #scenarioForm input, #scenarioForm select {
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background: #333;
+            color: #ff8c00;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #scenarioForm button {
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background: #ff8c00;
+            color: #1a1a1a;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        #scenarioForm button:disabled {
+            background: #4d4d4d;
+            color: #7a7a7a;
+            cursor: not-allowed;
+        }
+
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .jammer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .jammer-card {
+            border: 1px solid #d32f2f;
+            border-radius: 8px;
+            padding: 12px;
+            background: #260000;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .jammer-card .card-title {
+            grid-column: 1 / -1;
+            font-weight: 700;
+            color: #ff8a80;
+            font-size: 15px;
+        }
+
+        .jammer-card label {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .jammer-card input, .jammer-card select {
+            padding: 8px;
+            border-radius: 5px;
+            border: none;
+            background: #333;
+            color: #ff8c00;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #status-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        #chart-wrap {
+            position: relative;
+            min-height: 55vh;
+            display: flex;
+        }
+
+        #jammerChart {
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 75vh;
+        }
+
+        .legend-note {
+            font-size: 13px;
+            color: #bbb;
+            margin-top: 6px;
+        }
+
+        @keyframes alert-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 47, 47, 0.55), 0 4px 14px rgba(0,0,0,0.4); }
+            50%      { box-shadow: 0 0 22px 6px rgba(255, 47, 47, 0.35), 0 4px 14px rgba(0,0,0,0.4); }
+        }
+
+        #alert-banner {
+            display: none;
+            background: linear-gradient(90deg, #5a0000, #a01818);
+            border: 1px solid #d32f2f;
+            border-radius: 10px;
+            padding: 14px 20px;
+            align-items: center;
+            gap: 14px;
+            color: #fff;
+            font-weight: 700;
+            animation: alert-pulse 1.6s infinite;
+        }
+        #alert-banner.active { display: flex; }
+        #alert-banner .icon { font-size: 22px; line-height: 1; }
+
+        .det-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 10px 14px;
+            background: #0d0d0d;
+            border-radius: 8px;
+            flex-wrap: wrap;
+        }
+        .det-sep { color: #444; }
+        .det-metric { color: #aaa; font-size: 13px; }
+        .det-metric strong { color: #ffd699; font-weight: 700; }
+
+        .det-loophole-row {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #0d0d0d;
+            border-radius: 6px;
+            border-left: 3px solid #ff8c00;
+            font-size: 13px;
+        }
+        .det-loophole-row .lh-label { color: #888; }
+        .det-loophole-row .lh-value { color: #ff8c00; margin-left: 8px; }
+
+        .loc-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .loc-card {
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 12px;
+            background: #202020;
+        }
+        .loc-card .lc-title {
+            font-weight: 700;
+            color: #ff8a80;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .loc-card .lc-title .lc-type {
+            color: #aaa;
+            font-weight: 400;
+            font-size: 12px;
+        }
+        .loc-card .lc-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 6px 12px;
+            font-size: 13px;
+        }
+        .loc-card .lc-grid .lc-k { color: #888; }
+        .loc-card .lc-err-good { color: #4caf50; font-weight: 700; }
+        .loc-card .lc-err-ok   { color: #ff9800; font-weight: 700; }
+        .loc-card .lc-err-bad  { color: #ff5252; font-weight: 700; }
+        .loc-card .lc-err-na   { color: #777; }
+
+        /* ── Process Control panel ─────────────────────────────────────── */
+        .pc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 12px;
+        }
+        .pc-card {
+            background: #202020;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .pc-card .pc-head {
+            display: flex; align-items: center; gap: 8px;
+            font-weight: 700; color: #ffd699;
+        }
+        .pc-led {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #555; box-shadow: 0 0 6px #555;
+            flex-shrink: 0;
+        }
+        .pc-led.running { background: #4caf50; box-shadow: 0 0 10px #4caf50; animation: pc-pulse 2s infinite; }
+        .pc-led.stopped { background: #555;   box-shadow: 0 0 6px  #555;   }
+        .pc-led.error   { background: #ff5252; box-shadow: 0 0 10px #ff5252; }
+        @keyframes pc-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.55; }
+        }
+        .pc-meta { font-size: 11px; color: #888; line-height: 1.5; }
+        .pc-meta .pc-k { color: #666; }
+        .pc-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .pc-btn {
+            flex: 1; min-width: 64px;
+            padding: 6px 10px;
+            font-size: 12px; font-weight: 700;
+            background: #2a2a2a; color: #ff8c00;
+            border: 1px solid #444; border-radius: 5px;
+            cursor: pointer;
+        }
+        .pc-btn:hover:not(:disabled) { background: #383838; }
+        .pc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .pc-btn.danger { color: #ff5252; }
+        .pc-btn.logs   { color: #80d8ff; }
+        .pc-btn.active { background: #383838; box-shadow: inset 0 0 0 1px #ff8c00; }
+        .pc-log-wrap {
+            margin-top: 14px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #050505;
+            overflow: hidden;
+        }
+        .pc-log-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+        }
+        .pc-log-head .pc-log-title { font-weight: 700; color: #80d8ff; font-size: 13px; }
+        .pc-log-head .pc-log-ctrl { display: flex; gap: 8px; align-items: center; }
+        .pc-log-ctrl label { margin: 0; font-size: 11px; color: #aaa; display: flex; align-items: center; gap: 4px; }
+        .pc-log-ctrl input[type=checkbox] { width: auto; transform: scale(1.1); }
+        .pc-log {
+            margin: 0;
+            padding: 10px 14px;
+            font-family: 'Courier New', monospace;
+            font-size: 11.5px;
+            line-height: 1.45;
+            color: #c5c5c5;
+            background: #050505;
+            max-height: 360px;
+            min-height: 140px;
+            overflow: auto;
+            white-space: pre;
+        }
+        .pc-pm-warn {
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: #2a1810;
+            border: 1px dashed #d32f2f;
+            border-radius: 6px;
+            color: #ffab91;
+            font-size: 12px;
+            display: none;
+        }
+        .pc-pm-warn.show { display: block; }
+        .pc-pm-warn code { background: #000; padding: 1px 5px; border-radius: 3px; color: #ffd699; }
+
+        @media (max-width: 700px) {
+            #scenarioForm {
+                grid-template-columns: 1fr;
+            }
+            .jammer-card {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="page">
+    <div id="top-bar">
+        <h1>Jammer Scenario Dashboard</h1>
+        <a id="back-link" href="/">← Back to main dashboard</a>
+    </div>
+
+    <div id="alert-banner">
+        <span class="icon">⚠</span>
+        <span id="alert-text">JAMMING DETECTED</span>
+    </div>
+
+    <div class="panel">
+        <h2 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            Process Control
+            <span style="font-size:11px;color:#888;font-weight:400;letter-spacing:0.3px;">
+                — start / stop the RIC, xApp &amp; localizer with live log tailing (handled by the GUI backend at <code style="background:#000;padding:1px 4px;border-radius:3px;color:#ffd699;">/process/*</code>)
+            </span>
+        </h2>
+        <div class="pc-grid" id="pc-grid">
+            <!-- cards built by JS -->
+        </div>
+        <div class="pc-pm-warn" id="pc-pm-warn">
+            <strong>Process endpoints not reachable.</strong> The GUI backend doesn't expose <code>/process/status</code> yet —
+            update <code>src/http/data_controller.py</code> to the new version (with the PROCESS MANAGEMENT block at the bottom) and restart <code>main.py</code>.
+        </div>
+        <div class="pc-log-wrap">
+            <div class="pc-log-head">
+                <div class="pc-log-title">
+                    Live log — <span id="pc-log-active">(none selected)</span>
+                </div>
+                <div class="pc-log-ctrl">
+                    <label><input type="checkbox" id="pc-autoscroll" checked>auto-scroll</label>
+                    <label><input type="checkbox" id="pc-autorefresh" checked>auto-refresh (1s)</label>
+                    <button type="button" class="pc-btn" onclick="pcRefreshLog()" style="flex:0 0 auto;">Refresh</button>
+                    <button type="button" class="pc-btn" onclick="pcClearViewer()" style="flex:0 0 auto;">Clear view</button>
+                    <button type="button" class="pc-btn" onclick="pcClearLogs()" style="flex:0 0 auto;">Clear logs</button>
+                </div>
+            </div>
+            <pre class="pc-log" id="pc-log-pre">(select a component above and click "Logs" to start tailing its output)</pre>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Run Localizer (Python xApp)</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;align-items:end;">
+            <div>
+                <label for="loc_jam_start">Jam Start (s):</label>
+                <input type="number" id="loc_jam_start" value="5" style="padding:8px;border-radius:5px;border:none;background:#333;color:#ff8c00;width:100%;box-sizing:border-box;">
+            </div>
+            <div>
+                <label for="loc_jam_stop">Jam Stop (s):</label>
+                <input type="number" id="loc_jam_stop" value="35" style="padding:8px;border-radius:5px;border:none;background:#333;color:#ff8c00;width:100%;box-sizing:border-box;">
+            </div>
+            <div>
+                <label for="loc_sim_time">Sim Time (s):</label>
+                <input type="number" id="loc_sim_time" value="40" style="padding:8px;border-radius:5px;border:none;background:#333;color:#ff8c00;width:100%;box-sizing:border-box;">
+            </div>
+            <div>
+                <label for="loc_n_jammers">N Jammers:</label>
+                <input type="number" id="loc_n_jammers" value="1" min="1" max="4" style="padding:8px;border-radius:5px;border:none;background:#333;color:#ff8c00;width:100%;box-sizing:border-box;">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+                <button type="button" id="loc_start_btn" onclick="localizerStart()" style="padding:10px;border-radius:5px;border:none;background:#ff8c00;color:#1a1a1a;font-weight:700;cursor:pointer;">&#9654; Run Localizer</button>
+                <button type="button" onclick="localizerStop()" style="padding:10px;border-radius:5px;border:none;background:#333;color:#ff5252;font-weight:700;cursor:pointer;">&#9632; Stop</button>
+            </div>
+            <div>
+                <span style="font-size:12px;color:#888;">Status: <span id="loc_status" style="color:#ffd699;">idle</span></span><br>
+                <span style="font-size:12px;color:#888;">PID: <span id="loc_pid">—</span></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Scenario &amp; Jammer Setup</h2>
+        <form id="scenarioForm">
+            <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label for="flexric" style="margin:0;">Connect to FlexRIC: (If true, FlexRIC need to be running)</label>
+                    <input type="checkbox" id="flexric" name="flexric" value="true" style="width:auto; transform: scale(1.4);">
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label for="e2TermIp" style="margin:0;">e2TermIp:</label>
+                    <input type="text" id="e2TermIp" name="e2TermIp" value="127.0.0.1" disabled style="width:150px; background-color:#555;">
+                </div>
+            </div>
+            <div>
+                <label for="hoSinrDifference">hoSinrDifference (dB):</label>
+                <input type="number" id="hoSinrDifference" name="hoSinrDifference" value="3">
+            </div>
+            <div>
+                <label for="indicationPeriodicity">indicationPeriodicity (s):</label>
+                <input type="number" id="indicationPeriodicity" name="indicationPeriodicity" value="0.1">
+            </div>
+            <div>
+                <label for="simTime">simTime (s):</label>
+                <input type="number" id="simTime" name="simTime" value="1000">
+            </div>
+            <div>
+                <label for="KPM_E2functionID">KPM_E2functionID:</label>
+                <input type="number" id="KPM_E2functionID" name="KPM_E2functionID" value="2">
+            </div>
+            <div>
+                <label for="RC_E2functionID">RC_E2functionID:</label>
+                <input type="number" id="RC_E2functionID" name="RC_E2functionID" value="3">
+            </div>
+            <div>
+                <label for="N_MmWaveEnbNodes">N_MmWaveEnbNodes:</label>
+                <input type="number" id="N_MmWaveEnbNodes" name="N_MmWaveEnbNodes" value="4">
+                <label for="N_LteEnbNodes">N_LteEnbNodes:</label>
+                <input type="number" id="N_LteEnbNodes" name="N_LteEnbNodes" value="1">
+            </div>
+            <div>
+                <label for="N_Ues">N_Ues:</label>
+                <input type="number" id="N_Ues" name="N_Ues" value="3">
+            </div>
+            <div>
+                <label for="gNBTxPower">gNB TX Power (dBm):</label>
+                <input type="number" id="gNBTxPower" name="gNBTxPower" value="30" step="1" min="0" max="53">
+            </div>
+            <div>
+                <label for="CenterFrequency">CenterFrequency (Hz):</label>
+                <input type="number" id="CenterFrequency" name="CenterFrequency" value="3.5e9">
+            </div>
+            <div>
+                <label for="Bandwidth">Bandwidth (Hz):</label>
+                <input type="number" id="Bandwidth" name="Bandwidth" value="20e6">
+            </div>
+            <div>
+                <label for="IntersideDistanceUEs">IntersideDistanceUEs (m):</label>
+                <input type="number" id="IntersideDistanceUEs" name="IntersideDistanceUEs" value="500">
+            </div>
+            <div>
+                <label for="IntersideDistanceCells">IntersideDistanceCells (m):</label>
+                <input type="number" id="IntersideDistanceCells" name="IntersideDistanceCells" value="600">
+            </div>
+            <div>
+                <label for="MapSize">MapSize (m):</label>
+                <input type="number" id="MapSize" name="MapSize" value="" step="100" min="100" placeholder="blank = scenario default">
+            </div>
+            <div>
+                <label for="mobilityModel">Mobility Model:</label>
+                <select id="mobilityModel" name="mobilityModel">
+                    <option value="ns3::RandomWalk2dOutdoorMobilityModel">RandomWalk2dOutdoor</option>
+                    <option value="ns3::RandomWalk2dMobilityModel">RandomWalk2d</option>
+                    <option value="ns3::RandomWaypointMobilityModel">RandomWaypoint</option>
+                    <option value="ns3::GaussMarkovMobilityModel">GaussMarkov</option>
+                    <option value="ns3::ConstantVelocityMobilityModel">ConstantVelocity</option>
+                </select>
+            </div>
+            <div>
+                <label for="speedMin">Speed Min (m/s):</label>
+                <input type="number" id="speedMin" name="speedMin" value="2" step="0.1" min="0">
+            </div>
+            <div>
+                <label for="PathLossModel">Path Loss Model:</label>
+                <select id="PathLossModel" name="PathLossModel">
+                    <option value="ns3::ThreeGppUmiStreetCanyonPropagationLossModel" selected>3GPP UMi Street Canyon</option>
+                    <option value="ns3::ThreeGppUmaPropagationLossModel">3GPP UMa (Urban Macro)</option>
+                    <option value="ns3::ThreeGppRmaPropagationLossModel">3GPP RMa (Rural Macro)</option>
+                    <option value="ns3::ThreeGppIndoorOfficePropagationLossModel">3GPP InH (Indoor Hotspot)</option>
+                    <option value="ns3::ThreeGppV2vUrbanPropagationLossModel">3GPP V2V Urban</option>
+                </select>
+            </div>
+            <div>
+                <label for="ChannelConditionModel">Channel Condition:</label>
+                <select id="ChannelConditionModel" name="ChannelConditionModel">
+                    <option value="ns3::ThreeGppUmiStreetCanyonChannelConditionModel" selected>UMi Street Canyon</option>
+                    <option value="ns3::ThreeGppUmaChannelConditionModel">UMa</option>
+                    <option value="ns3::ThreeGppRmaChannelConditionModel">RMa</option>
+                    <option value="ns3::ThreeGppIndoorOpenOfficeChannelConditionModel">InH Open Office</option>
+                    <option value="ns3::ThreeGppV2vUrbanChannelConditionModel">V2V Urban</option>
+                </select>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <label for="ShadowingEnabled" style="margin:0;">Shadowing:</label>
+                <input type="checkbox" id="ShadowingEnabled" name="ShadowingEnabled" value="true" style="width:auto; transform:scale(1.4);">
+            </div>
+            <div>
+                <label for="speedMax">Speed Max (m/s):</label>
+                <input type="number" id="speedMax" name="speedMax" value="4" step="0.1" min="0">
+            </div>
+            <div>
+                <label for="scenario">Jammer Scenario: (refresh page to refresh list)</label>
+                <select id="scenario" name="scenario"></select>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <label for="flags" style="margin:0;">Scenario flags:</label>
+                <input type="checkbox" id="flags" name="flags" value="true" style="width:auto; transform: scale(1.4);">
+            </div>
+
+            <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:24px; border-top: 1px solid #444; padding-top:12px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label for="JammerEnabled" style="margin:0;">Enable Jammers:</label>
+                    <input type="checkbox" id="JammerEnabled" name="JammerEnabled" value="true" checked style="width:auto; transform: scale(1.4);">
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label for="N_Jammers" style="margin:0;">N_Jammers:</label>
+                    <select id="N_Jammers" name="N_Jammers" style="width:auto;">
+                        <option value="0">0</option>
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="jammer-grid" style="grid-column: 1 / -1;" id="jammer-cards"></div>
+
+            <div style="grid-column: 1 / -1; display:flex; gap: 16px; flex-wrap: wrap; margin-top: 10px;">
+                <button type="button" onclick="sendForm('/start_simulation')" id="start_button">Start new</button>
+                <button type="button" onclick="stopSim('/stop_simulation')" id="stop_button" disabled>Stop</button>
+                <button type="button" onclick="resetSim('/reset_simulation')" id="reset_button">Reset</button>
+            </div>
+
+            <div id="status-row" style="grid-column: 1 / -1;">
+                <span>Status: <span id="status_label">off</span></span>
+                <span>Sim ID: <span id="simid_label" style="color:white;"></span></span>
+                <span id="warning_label" style="color:#bbb; font-size: 13px;"></span>
+            </div>
+        </form>
+    </div>
+
+    <div class="panel">
+        <h2 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            Live Detection &amp; Localization (xApp)
+            <span style="font-size:11px;color:#888;font-weight:400;letter-spacing:0.3px;">— real-time KPM analysis, runs in-browser on every /refresh-data poll</span>
+        </h2>
+        <div class="det-status-bar">
+            <div id="det-status-dot" style="width:12px;height:12px;border-radius:50%;background:#4caf50;box-shadow:0 0 8px #4caf50;flex-shrink:0;"></div>
+            <span id="det-status-text" style="font-weight:700;color:#a5d6a7;font-size:14px;">MONITORING — no jamming</span>
+            <span class="det-sep">│</span>
+            <span class="det-metric">Confidence: <strong id="det-confidence">0%</strong></span>
+            <span class="det-sep">│</span>
+            <span class="det-metric">Affected UEs: <strong id="det-affected">0 / 0</strong></span>
+            <span class="det-sep">│</span>
+            <span class="det-metric">Est. jammers: <strong id="det-num-est">0</strong></span>
+            <span class="det-sep">│</span>
+            <span class="det-metric">Baseline: <strong id="det-baseline">collecting…</strong></span>
+        </div>
+        <div class="det-loophole-row">
+            <span class="lh-label">Loopholes fired (rule-based pre-filter):</span>
+            <span class="lh-value" id="det-loopholes">none</span>
+        </div>
+        <div class="loc-cards" id="jammer-localization-cards"></div>
+    </div>
+
+    <div class="panel">
+        <h2>Simulation Grid (UEs, Cells &amp; Jammers)</h2>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+            <label for="sinrThreshold" style="margin:0; white-space:nowrap;">Jammed SINR threshold (dB):</label>
+            <input type="number" id="sinrThreshold" value="0" step="0.5" style="width:90px;">
+            <span class="legend-note" style="margin:0;">
+                Color reflects each UE/Cell's real measured serving SINR (E2 KPM <code>l3 serving sinr</code>).
+                <span style="color:#ff8c00;">&#9679;</span> healthy &nbsp;
+                <span style="color:#ffb347;">&#9679;</span> degraded (0&nbsp;dB &ndash; threshold) &nbsp;
+                <span style="color:#ff2d2d;">&#9679;</span> jammed (below threshold)
+            </span>
+        </div>
+        <div id="chart-wrap">
+            <div id="powerBudgetPanel" style="background:#1a1a2e; border:1px solid #444; border-radius:8px; padding:12px; margin-bottom:12px; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:10px; font-size:13px;">
+                <div><span style="color:#888;">gNB TX Power:</span> <span id="pb_gnb_tx" style="color:#58a6ff; font-weight:bold;">30 dBm</span></div>
+                <div><span style="color:#888;">Jammer TX Power:</span> <span id="pb_jam_tx" style="color:#ff6b6b; font-weight:bold;">— dBm</span></div>
+                <div><span style="color:#888;">Path Loss Model:</span> <span id="pb_plm" style="color:#e3b341;">UMi Street Canyon</span></div>
+                <div><span style="color:#888;">Shadowing:</span> <span id="pb_shadow" style="color:#aaa;">OFF</span></div>
+                <div><span style="color:#888;">J/S Ratio (est.):</span> <span id="pb_jsr" style="color:#ffd93d; font-weight:bold;">—</span></div>
+                <div><span style="color:#888;">Freq:</span> <span id="pb_freq" style="color:#aaa;">3.5 GHz</span></div>
+            </div>
+            <canvas id="jammerChart"></canvas>
+        </div>
+        <div class="legend-note">
+            Circles = UEs, triangles = Cells, red crosses = Jammers (size and color intensity scale with TX power in dBm).
+            Jammer markers are drawn from this form's current values and refresh every 2s along with live UE/Cell positions.
+            UE/Cell marker color reflects measured serving SINR degradation, not just proximity to a jammer.
+            Expanding rings around each jammer show it's actively emitting (isotropic -- all jammer types here radiate
+            equally in every direction, so there's no real "beam" to draw); ring size scales with TX power.
+        </div>
+    </div>
+</div>
+
+<script>
+    const host_ns3 = "{{ host_ns3 }}";
+    const jammerTypeNames = ["BARRAGE","PARTIAL_BAND","PULSE","SWEEP","REACTIVE","DECEPTIVE","MULTI_TONE","MAB_ADAPTIVE"];
+
+    function jammerCardHtml(i, x, y, pwr, st, sp, pr, dc) {
+        const opts = jammerTypeNames.map((n, t) => `<option value="${t}">${n}</option>`).join('');
+        return `
+            <div class="jammer-card">
+                <div class="card-title">Jammer ${i}</div>
+                <div>
+                    <label for="Jammer${i}Type">Type:</label>
+                    <select id="Jammer${i}Type" name="Jammer${i}Type">${opts}</select>
+                </div>
+                <div>
+                    <label for="Jammer${i}X">X (m):</label>
+                    <input type="number" id="Jammer${i}X" name="Jammer${i}X" value="${x}">
+                </div>
+                <div>
+                    <label for="Jammer${i}Y">Y (m):</label>
+                    <input type="number" id="Jammer${i}Y" name="Jammer${i}Y" value="${y}">
+                </div>
+                <div>
+                    <label for="Jammer${i}PowerDbm">Power (dBm):</label>
+                    <input type="number" id="Jammer${i}PowerDbm" name="Jammer${i}PowerDbm" value="${pwr}">
+                </div>
+                <div>
+                    <label for="Jammer${i}Start">Start (s):</label>
+                    <input type="number" id="Jammer${i}Start" name="Jammer${i}Start" value="${st}" step="0.1">
+                </div>
+                <div>
+                    <label for="Jammer${i}Stop">Stop (s):</label>
+                    <input type="number" id="Jammer${i}Stop" name="Jammer${i}Stop" value="${sp}" step="0.1">
+                </div>
+                <div>
+                    <label for="Jammer${i}PartialRatio">PartialRatio:</label>
+                    <input type="number" id="Jammer${i}PartialRatio" name="Jammer${i}PartialRatio" value="${pr}" step="0.05" min="0" max="1">
+                </div>
+                <div>
+                    <label for="Jammer${i}DutyCycle">DutyCycle:</label>
+                    <input type="number" id="Jammer${i}DutyCycle" name="Jammer${i}DutyCycle" value="${dc}" step="0.05" min="0" max="1">
+                </div>
+            </div>`;
+    }
+
+    const jammerDefaults = [
+        [2100, 1900, 30, 0, 1000, 0.5, 0.5],
+        [1800, 2200, 25, 0, 1000, 0.5, 0.5],
+        [2400, 1700, 28, 0, 1000, 0.5, 0.5],
+        [1700, 2400, 26, 0, 1000, 0.5, 0.5],
+    ];
+
+    function renderJammerCards() {
+        const n = parseInt(document.getElementById('N_Jammers').value || '0', 10);
+        const container = document.getElementById('jammer-cards');
+        let html = '';
+        for (let i = 0; i < n; i++) {
+            const d = jammerDefaults[i] || [2000, 2000, 25, 0, 1000, 0.5, 0.5];
+            html += jammerCardHtml(i, ...d);
+        }
+        container.innerHTML = html;
+    }
+    document.getElementById('N_Jammers').addEventListener('change', renderJammerCards);
+    renderJammerCards();
+
+
+    // ── Power Budget Panel: live sync with form inputs ────────────────────────
+    const _PLM_SHORT = {
+        'ns3::ThreeGppUmiStreetCanyonPropagationLossModel': 'UMi Street Canyon',
+        'ns3::ThreeGppUmaPropagationLossModel':             'UMa (Urban Macro)',
+        'ns3::ThreeGppRmaPropagationLossModel':             'RMa (Rural Macro)',
+        'ns3::ThreeGppIndoorOfficePropagationLossModel':    'InH (Indoor)',
+        'ns3::ThreeGppV2vUrbanPropagationLossModel':        'V2V Urban',
+    };
+    function syncPowerBudget() {
+        const gnbPwr = parseFloat(document.getElementById('gNBTxPower')?.value || '30');
+        const freq   = parseFloat(document.getElementById('CenterFrequency')?.value || '3.5e9');
+        const shadow = document.getElementById('ShadowingEnabled')?.checked;
+        const plmVal = document.getElementById('PathLossModel')?.value || '';
+        const nJam   = parseInt(document.getElementById('N_Jammers')?.value || '0', 10);
+        let maxJamPwr = null;
+        for (let i = 0; i < nJam; i++) {
+            const el = document.getElementById('Jammer' + i + 'PowerDbm');
+            if (el) { const v = parseFloat(el.value); if (Number.isFinite(v) && (maxJamPwr === null || v > maxJamPwr)) maxJamPwr = v; }
+        }
+        const jsr = (maxJamPwr !== null && Number.isFinite(gnbPwr))
+            ? (maxJamPwr - gnbPwr).toFixed(1) + ' dB' : '—';
+        const G = id => document.getElementById(id);
+        if (G('pb_gnb_tx')) G('pb_gnb_tx').textContent = Number.isFinite(gnbPwr) ? gnbPwr + ' dBm' : '—';
+        if (G('pb_jam_tx')) G('pb_jam_tx').textContent = maxJamPwr !== null ? maxJamPwr + ' dBm' : '—';
+        if (G('pb_plm'))    G('pb_plm').textContent    = _PLM_SHORT[plmVal] || plmVal.split('::').pop() || '—';
+        if (G('pb_shadow')) G('pb_shadow').textContent = shadow ? 'ON' : 'OFF';
+        if (G('pb_jsr'))    G('pb_jsr').textContent    = jsr;
+        if (G('pb_freq'))   G('pb_freq').textContent   = Number.isFinite(freq) ? (freq/1e9).toFixed(3) + ' GHz' : '—';
+    }
+    // Static form inputs
+    ['gNBTxPower','CenterFrequency','ShadowingEnabled','PathLossModel','N_Jammers'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('change', syncPowerBudget); el.addEventListener('input', syncPowerBudget); }
+    });
+    // Jammer power inputs are built dynamically — use event delegation
+    document.addEventListener('input', function(e) {
+        if (e.target && e.target.id && e.target.id.startsWith('Jammer') && e.target.id.endsWith('PowerDbm'))
+            syncPowerBudget();
+    });
+    syncPowerBudget();
+
+    document.getElementById('flexric').addEventListener('change', function () {
+        var e2TermIpField = document.getElementById('e2TermIp');
+        if (this.checked) {
+            e2TermIpField.disabled = false;
+            e2TermIpField.style.backgroundColor = "";
+        } else {
+            e2TermIpField.disabled = true;
+            e2TermIpField.value = "127.0.0.1";
+            e2TermIpField.style.backgroundColor = "#555";
+        }
+    });
+
+    fetch('/scenarios')
+        .then(r => r.json())
+        .then(files => {
+            const select = document.getElementById('scenario');
+            select.innerHTML = '';
+            const paths = Object.values(files);
+            const jammerPaths = paths.filter(p => p.toLowerCase().includes('jammer'));
+            const otherPaths  = paths.filter(p => !p.toLowerCase().includes('jammer'));
+            [...jammerPaths, ...otherPaths].forEach(path => {
+                const opt = document.createElement('option');
+                opt.value = path;
+                opt.textContent = path;
+                select.appendChild(opt);
+            });
+            if (select.options.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = 'scratch/scenario-zero-with-jammer-v3.cc';
+                opt.textContent = 'scratch/scenario-zero-with-jammer-v3.cc';
+                select.appendChild(opt);
+            }
+        })
+        .catch(() => {
+            const select = document.getElementById('scenario');
+            const opt = document.createElement('option');
+            opt.value = 'scratch/scenario-zero-with-jammer-v3.cc';
+            opt.textContent = 'scratch/scenario-zero-with-jammer-v3.cc';
+            select.appendChild(opt);
+        });
+
+    // ── Jammer emission ring animation ───────────────────────────────────────
+    // All jammer types here use an IsotropicAntennaModel (see jammer.h /
+    // jammer_scenario_fix.h) -- the spectrum shape differs per type (BARRAGE,
+    // PARTIAL_BAND, etc.) but none radiate directionally in space. So "showing
+    // emission" honestly means expanding rings (like ripples), not a beam/cone,
+    // for every jammer type.
+    // NOTE: the grid has no real sim-time field from the backend (it only
+    // polls /refresh-data every 2s for a status string), so rings are NOT
+    // gated on each jammer's actual Start/Stop window -- that would desync
+    // after any page reload and silently show wrong timing. Instead, every
+    // jammer with power > 0 animates continuously whenever the backend
+    // reports the simulation as "on" -- an honest "this jammer is part of an
+    // active run, at this power level", without overclaiming frame-accurate
+    // timing the page doesn't actually have.
+    let jammerRunStartedAt = null; // wall-clock ms when sim last turned 'on'
+    let lastSimStatus = null;
+
+    function emissionPlugin() {
+        return {
+            id: 'jammerEmission',
+            afterDatasetsDraw(chart) {
+                const jammerDataset = chart.data.datasets[2];
+                if (!jammerDataset || !jammerDataset.data || jammerDataset.data.length === 0) return;
+                if (lastSimStatus !== 'on') return;
+
+                const elapsedS = jammerRunStartedAt ? (performance.now() - jammerRunStartedAt) / 1000 : 0;
+                const { ctx, scales } = chart;
+                ctx.save();
+                jammerDataset.data.forEach(j => {
+                    const power = j.power || 0;
+                    if (power <= 0) return; // nothing meaningful to animate
+
+                    const px = scales.x.getPixelForValue(j.x);
+                    const py = scales.y.getPixelForValue(j.y);
+                    // Ring color intensity/extent tracks TX power, same scale used
+                    // for the marker itself, so it reads consistently.
+                    const maxRadiusPx = Math.max(30, Math.min(140, 30 + power * 1.8));
+                    const ringCount = 3;
+                    const periodS = 1.6; // seconds per ring cycle
+                    for (let r = 0; r < ringCount; r++) {
+                        const phase = ((elapsedS / periodS) + r / ringCount) % 1; // 0..1
+                        const radius = phase * maxRadiusPx;
+                        const alpha = (1 - phase) * 0.55;
+                        if (alpha <= 0.02) continue;
+                        ctx.beginPath();
+                        ctx.arc(px, py, radius, 0, 2 * Math.PI);
+                        // Show gNB TX power on the map
+                        const gnbPwr = document.getElementById('gNBTxPower')?.value || '30';
+                        ctx.fillStyle = '#58a6ff';
+                        ctx.font = '9px monospace';
+                        ctx.fillText(gnbPwr + 'dBm', px + radius + 3, py - 5);
+                        ctx.strokeStyle = `rgba(255, 60, 30, ${alpha.toFixed(2)})`;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                });
+                ctx.restore();
+            }
+        };
+    }
+
+    function animateEmission() {
+        if (jammerChart) jammerChart.draw();
+        requestAnimationFrame(animateEmission);
+    }
+
+    var jctx = document.getElementById('jammerChart').getContext('2d');
+    var jammerChart = new Chart(jctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'UEs',
+                    data: [],
+                    backgroundColor: '#ff8c00',
+                    font: { size: 14 }, // Add this line
+                    borderColor: '#000000',
+                    borderWidth: 1,
+                    pointRadius: 6,
+                    pointStyle: 'circle',
+                    datalabels: {
+                        align: 'top',
+                        color: '#ff8c00',
+                        formatter: v => {
+                            const spd = parseFloat(v.speed);
+                            const lines = [`UE${v.jammed ? ' \u26a0' : ''} (${v.x.toFixed(1)}, ${v.y.toFixed(1)})`];
+                            if (spd > 0 && Number.isFinite(spd)) lines.push(spd.toFixed(1) + ' m/s');
+                            return lines;
+                        },
+                        offset: 6
+                    }
+                },
+                {
+                    label: 'Cells',
+                    data: [],
+                    backgroundColor: '#ff4500',
+                    font: { size: 14 }, // Add this line
+                    borderColor: '#000000',
+                    borderWidth: 1,
+                    pointRadius: 18,
+                    pointStyle: 'triangle',
+                    datalabels: {
+                        align: 'top',
+                        color: '#ff4500',
+                        formatter: v => {
+                            const realPwr = v.tx_power_dbm;
+                            const formPwr = document.getElementById('gNBTxPower')?.value;
+                            const lines = [`Cell${v.jammed ? ' \u26a0' : ''} (${v.x.toFixed(1)}, ${v.y.toFixed(1)})`];
+                            if (realPwr !== null && realPwr !== undefined) {
+                                lines.push(realPwr + ' dBm (live)');
+                            } else if (formPwr) {
+                                lines.push(formPwr + ' dBm (requested)');
+                            }
+                            return lines;
+                        },
+                        offset: 10
+                    }
+                },
+                {
+                    label: 'Jammers',
+                    data: [],
+                    backgroundColor: 'red',
+                    borderColor: 'yellow',
+                    borderWidth: 2,
+                    pointRadius: 14,
+                    pointStyle: 'crossRot',
+                    datalabels: {
+                        align: 'top',
+                        color: '#ff5252',
+                        formatter: v => `J${v.j_id} [${v.j_type}] ${v.power}dBm`,
+                        offset: 10
+                    }
+                },
+                {
+                    label: 'Estimated Jammers',
+                    data: [],
+                    backgroundColor: 'rgba(0, 255, 200, 0.10)',
+                    borderColor: '#00ffc8',
+                    borderWidth: 3,
+                    pointRadius: 18,
+                    pointStyle: 'rectRot',
+                    datalabels: {
+                        align: 'bottom',
+                        color: '#00ffc8',
+                        formatter: v => `EST${v.est_id}` + (v.error !== null && v.error !== undefined ? `  Δ${v.error.toFixed(0)}m` : ''),
+                        offset: 14,
+                        font: { weight: 'bold' }
+                    }
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { min: 0, title: { display: true, text: 'X (m)', color: '#ff8c00' }, ticks: { color: '#ff8c00' } },
+                y: { min: 0, title: { display: true, text: 'Y (m)', color: '#ff8c00' }, ticks: { color: '#ff8c00' } }
+            },
+            plugins: {
+                legend: { labels: { color: '#ff8c00' } },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            const d = context.raw;
+                            let label = context.dataset.label || '';
+                            if (!d) return label;
+                            if (label === 'UEs') {
+                                const sinrTxt = (d.sinr === null || d.sinr === undefined) ? 'N/A' : `${d.sinr.toFixed(2)} dB`;
+                                const spdTxt = (d.speed === null || d.speed === undefined || Number.isNaN(d.speed)) ? 'N/A' : `${d.speed.toFixed(2)} m/s`;
+                                label += `\nID: ${d.ue_id}\nX: ${d.x.toFixed(1)} Y: ${d.y.toFixed(1)}\nType: ${d.type}\nCell: ${d.MMWave_Cell || 'N/A'}\nSpeed: ${spdTxt}\nServing SINR: ${sinrTxt}${d.jammed ? '  \u26a0 BELOW THRESHOLD' : ''}`;
+                            } else if (label === 'Cells') {
+                                const sinrTxt = (d.sinr === null || d.sinr === undefined) ? 'N/A' : `${d.sinr.toFixed(2)} dB`;
+                                label += `\nID: ${d.cell_id}\nX: ${d.x.toFixed(1)} Y: ${d.y.toFixed(1)}\nType: ${d.type}\nServing SINR: ${sinrTxt}${d.jammed ? '  \u26a0 BELOW THRESHOLD' : ''}`;
+                            } else if (label === 'Jammers') {
+                                label += `\nID: ${d.j_id}\nType: ${d.j_type}\nTX Power: ${d.power} dBm\nStart: ${d.j_start}s Stop: ${d.j_stop}s`;
+                            } else if (label === 'Estimated Jammers') {
+                                const errTxt = (d.error === null || d.error === undefined) ? 'N/A' : `${d.error.toFixed(1)} m`;
+                                label += `\nEstimate ID: ${d.est_id}\nX: ${d.x.toFixed(1)} Y: ${d.y.toFixed(1)}\nDistance error vs GT: ${errTxt}\nUEs in cluster: ${d.ueCount}\nWeight (\u03A3 SINR drop): ${d.totalWeight ? d.totalWeight.toFixed(1) + ' dB' : '0'}`;
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [ChartDataLabels, emissionPlugin()]
+    });
+
+    // Map a numeric SINR (dB) to a color along healthy -> degraded -> jammed.
+    // threshold = dB value below which a UE/Cell is considered "jammed" (red).
+    // Anything from 0dB up to threshold is "degraded" (amber), above threshold is healthy.
+    function sinrToColor(sinrVal, threshold, healthyColor) {
+        if (sinrVal === null || sinrVal === undefined || Number.isNaN(sinrVal)) {
+            return { color: healthyColor, jammed: false, noData: true };
+        }
+        if (sinrVal < threshold) {
+            // Jammed: intensity scales as SINR drops further below threshold (capped).
+            const depth = Math.max(0, Math.min(1, (threshold - sinrVal) / 20));
+            const alpha = 0.55 + 0.45 * depth;
+            return { color: `rgba(255, 30, 30, ${alpha.toFixed(2)})`, jammed: true, noData: false };
+        }
+        if (sinrVal < Math.max(threshold, 0) + 5 || sinrVal < 0) {
+            // Degraded zone: between 0dB and threshold (or just above threshold if threshold>0)
+            return { color: '#ffb347', jammed: false, noData: false };
+        }
+        return { color: healthyColor, jammed: false, noData: false };
+    }
+
+    // Parses a SINR value coming from /refresh-data. sim_data_pusher.py stores
+    // "l3 serving sinr" as a raw string, so it can be '', 'nan', or a number string.
+    function parseSinr(raw) {
+        if (raw === undefined || raw === null || raw === '') return null;
+        const n = parseFloat(raw);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function refreshGrid() {
+        fetch('/refresh-data')
+            .then(r => r.json())
+            .then(data => {
+                const cellColors = [
+                    '#1f77b4', '#9467bd', '#2ca02c', '#d62728', '#ff7f0e',
+                    '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+                ];
+                // Only render the grid when a jammer scenario is the one actually
+                // tracked as running — a chart-page run of a non-jammer scenario
+                // shares the same backend singleton, so without this gate its
+                // UEs/cells would "leak" into the jammer dashboard too.
+                const isJammerScenarioRunning = /jammer/i.test(data.scenario || '');
+                const cells = isJammerScenarioRunning ? (data.cells || []) : [];
+                const ues = isJammerScenarioRunning ? (data.ues || []) : [];
+                const sinrMap = data.sinr || {};
+                const threshold = parseFloat(document.getElementById('sinrThreshold').value);
+                const jamThreshold = Number.isFinite(threshold) ? threshold : 0;
+                const cellColorMap = new Map(cells.map((cell, index) => [cell.cell_id, cellColors[index % cellColors.length]]));
+
+                const _nowMs = Date.now();
+                const ueData = ues.map(ue => {
+                    const sinrVal = parseSinr(sinrMap[ue.ue_id]);
+                    const baseColor = cellColorMap.get(ue.MMWave_Cell) || '#ff8c00';
+                    const sinrInfo = sinrToColor(sinrVal, jamThreshold, baseColor);
+                    // Use ns-3 Speed_mps when available; otherwise estimate from Δposition
+                    let spd = parseFloat(ue.Speed_mps);
+                    if (!(spd > 0)) {
+                        const prev = _prevUESnap.get(ue.ue_id);
+                        if (prev && prev.t) {
+                            const dx = ue.x_position - prev.x;
+                            const dy = ue.y_position - prev.y;
+                            const dt = (_nowMs - prev.t) / 1000;
+                            if (dt > 0.1) spd = Math.sqrt(dx*dx + dy*dy) / dt;
+                        }
+                    }
+                    _prevUESnap.set(ue.ue_id, {x: ue.x_position, y: ue.y_position, t: _nowMs});
+                    return {
+                        x: ue.x_position,
+                        y: ue.y_position,
+                        ue_id: ue.ue_id,
+                        type: ue.type,
+                        MMWave_Cell: ue.MMWave_Cell,
+                        speed: spd,
+                        sinr: sinrVal,
+                        jammed: sinrInfo.jammed,
+                        backgroundColor: sinrInfo.color
+                    };
+                });
+                const cellData = cells.map(c => {
+                    const sinrVal = parseSinr(c.serving_sinr);
+                    const baseColor = cellColorMap.get(c.cell_id) || '#ff4500';
+                    const sinrInfo = sinrToColor(sinrVal, jamThreshold, baseColor);
+                    return {
+                        x: c.x_position,
+                        y: c.y_position,
+                        cell_id: c.cell_id,
+                        type: c.type,
+                        tx_power_dbm: c.tx_power_dbm,
+                        sinr: sinrVal,
+                        jammed: sinrInfo.jammed,
+                        backgroundColor: sinrInfo.color,
+                        pointStyle: c.type === 'lte' ? 'rect' : 'triangle'
+                    };
+                });
+                jammerChart.data.datasets[0].data = ueData;
+                jammerChart.data.datasets[0].backgroundColor = ueData.map(u => u.backgroundColor);
+                jammerChart.data.datasets[0].borderColor = ueData.map(u => u.jammed ? '#fff200' : '#000000');
+                jammerChart.data.datasets[1].data = cellData;
+                jammerChart.data.datasets[1].backgroundColor = cellData.map(c => c.backgroundColor);
+                jammerChart.data.datasets[1].borderColor = cellData.map(c => c.jammed ? '#fff200' : '#000000');
+                jammerChart.data.datasets[1].pointStyle = cellData.map(c => c.pointStyle);
+
+                const backendIsJammerScenario = /jammer/i.test(data.scenario || '');
+                const enabled = document.getElementById('JammerEnabled').checked && backendIsJammerScenario;
+                const n = parseInt(document.getElementById('N_Jammers').value || '0', 10);
+                const jammerData = [];
+                if (enabled) {
+                    for (let i = 0; i < n; i++) {
+                        const xEl = document.getElementById(`Jammer${i}X`);
+                        const yEl = document.getElementById(`Jammer${i}Y`);
+                        if (!xEl || !yEl) continue;
+                        const typeEl = document.getElementById(`Jammer${i}Type`);
+                        const powerEl = document.getElementById(`Jammer${i}PowerDbm`);
+                        const startEl = document.getElementById(`Jammer${i}Start`);
+                        const stopEl = document.getElementById(`Jammer${i}Stop`);
+                        const power = powerEl ? parseFloat(powerEl.value) : 0;
+                        jammerData.push({
+                            x: parseFloat(xEl.value),
+                            y: parseFloat(yEl.value),
+                            j_id: i,
+                            j_type: jammerTypeNames[parseInt(typeEl ? typeEl.value : 0, 10)] || 'UNKNOWN',
+                            power: power,
+                            j_start: startEl ? startEl.value : '',
+                            j_stop: stopEl ? stopEl.value : ''
+                        });
+                    }
+                }
+                jammerChart.data.datasets[2].data = jammerData;
+                jammerChart.data.datasets[2].pointRadius = jammerData.map(j => Math.max(10, Math.min(36, 10 + (j.power || 0) / 1.8)));
+                jammerChart.data.datasets[2].backgroundColor = jammerData.map(j => `rgba(255, 0, 0, ${Math.max(0.35, Math.min(1, (j.power || 0) / 45))})`);
+                jammerChart.data.datasets[2].borderColor = jammerData.map(j => (j.power || 0) >= 35 ? '#fff200' : '#ffae00');
+
+                // ── Live xApp: ingest this KPM snapshot and run detection ─
+                xappIngestSnapshot(ues, sinrMap, data.simulation_status || 'off');
+                xappRunDetection(ues, cells, jammerData);
+                xappRenderUI();
+                // Push estimated jammer positions into the 4th dataset
+                jammerChart.data.datasets[3].data = xappState.detection.estimatedJammers.map((e, i) => ({
+                    x: e.x, y: e.y, est_id: i + 1,
+                    error: xappState.detection.matchedErrors[i] ? xappState.detection.matchedErrors[i].error : null,
+                    ueCount: e.ueCount, totalWeight: e.totalWeight
+                }));
+
+                const dims = data.max_x_max_y || [3000, 3000];
+                jammerChart.options.scales.x.max = dims[0];
+                jammerChart.options.scales.y.max = dims[1];
+                jammerChart.update();
+
+                const newStatus = data.simulation_status || 'off';
+                if (newStatus === 'on' && lastSimStatus !== 'on') {
+                    jammerRunStartedAt = performance.now();
+                } else if (newStatus !== 'on') {
+                    jammerRunStartedAt = null;
+                }
+                lastSimStatus = newStatus;
+                // Don't stomp the more descriptive "Simulation starting/running" text
+                // sendForm() sets locally; only reflect backend status when it goes
+                // back to 'off' (sendForm doesn't track that transition itself).
+                if (newStatus === 'off') {
+                    document.getElementById('status_label').textContent = 'off';
+                }
+                document.getElementById('simid_label').textContent = data.sim_id || '';
+            })
+            .catch(err => console.error('refresh-data error:', err));
+    }
+    // ════════════════════════════════════════════════════════════════════════
+    // LIVE xApp — Real-time Jammer Detection & Localization
+    // ════════════════════════════════════════════════════════════════════════
+    // Mirrors the offline jammer_xapp_localizer_v2.py pipeline, but on the
+    // live /refresh-data stream — runs entirely in the browser so the user
+    // sees detection + localization the instant a UE's SINR degrades.
+    //
+    // Inputs available per 2-second poll:
+    //   - ue positions (x_position, y_position) and ue_id
+    //   - serving SINR per UE (data.sinr[ue_id], dB)
+    //   - cell positions
+    //   - this form's GT jammer X/Y/Type/Power (used to compute error)
+    //
+    // Pipeline:
+    //   1. Per-UE rolling SINR history (last 30 samples)
+    //   2. Baseline = mean SINR per UE during the first BASELINE_WINDOW_S
+    //      seconds of an active simulation (a clean "pre-jam" reference)
+    //   3. Loophole pre-filter:
+    //        L1: count UEs whose current SINR is > SINR_DROP_THRESH below
+    //            their own baseline
+    //        L3: cross-UE SINR std exceeds CROSS_STD_THRESH
+    //        L4: any UE current SINR below jammed-threshold input
+    //   4. Weighted Centroid Localization (WCL):
+    //        weight per affected UE = max(0, baseline_sinr - current_sinr)
+    //        Estimate = weighted mean of UE positions
+    //        For N>1 jammers, weighted k-means on those UEs (k=N_Jammers)
+    //   5. Hungarian-style greedy matching of estimates to GT jammers
+    //      → per-jammer distance error in metres
+    // ────────────────────────────────────────────────────────────────────────
+    const X_BASELINE_WINDOW_S = 8.0;   // seconds of clean data before jammer turns on
+    const X_HISTORY_LEN       = 30;    // last N SINR samples per UE
+    const X_SINR_DROP_THRESH  = 3.0;   // dB — L1 trigger
+    const X_CROSS_STD_THRESH  = 5.0;   // dB — L3 trigger
+    const X_KMEANS_ITERS      = 12;
+
+    const xappState = {
+        sinrHistory: {},   // ue_id -> [{t, sinr}, ...]
+        baseline:    {},   // ue_id -> {mean, n}
+        simStartMs:  null, // wall-clock ms when status went 'on'
+        lastStatus:  null,
+        detection: {
+            active: false,
+            confidence: 0,
+            affectedUes: 0,
+            totalUes: 0,
+            loopholes: [],
+            estimatedJammers: [],  // [{x, y, ueCount, totalWeight, ueIds}]
+            matchedErrors:    [],  // per GT: {gt, est, error}
+            baselineReady: false,
+            baselineProgress: 0,
+        },
+    };
+
+    function xappIngestSnapshot(ues, sinrMap, status) {
+        // Reset when a fresh simulation starts
+        if (status === 'on' && xappState.lastStatus !== 'on') {
+            xappState.simStartMs   = performance.now();
+            xappState.sinrHistory  = {};
+            xappState.baseline     = {};
+        }
+        if (status !== 'on') {
+            xappState.lastStatus = status;
+            xappState.simStartMs = null;
+            // Clear detection so old results don't linger after a stop
+            xappState.detection.active = false;
+            xappState.detection.affectedUes = 0;
+            xappState.detection.estimatedJammers = [];
+            xappState.detection.matchedErrors = [];
+            xappState.detection.loopholes = [];
+            xappState.detection.confidence = 0;
+            return;
+        }
+        xappState.lastStatus = status;
+        const elapsedS = xappState.simStartMs ? (performance.now() - xappState.simStartMs) / 1000 : 0;
+        ues.forEach(ue => {
+            const sinr = parseSinr(sinrMap[ue.ue_id]);
+            if (sinr === null) return;
+            const uid = ue.ue_id;
+            if (!xappState.sinrHistory[uid]) xappState.sinrHistory[uid] = [];
+            const hist = xappState.sinrHistory[uid];
+            hist.push({ t: elapsedS, sinr: sinr });
+            if (hist.length > X_HISTORY_LEN) hist.shift();
+            // Baseline = mean of samples seen before BASELINE_WINDOW_S
+            if (elapsedS <= X_BASELINE_WINDOW_S) {
+                if (!xappState.baseline[uid]) xappState.baseline[uid] = { mean: 0, n: 0 };
+                const b = xappState.baseline[uid];
+                b.mean = (b.mean * b.n + sinr) / (b.n + 1);
+                b.n   += 1;
+            }
+        });
+        xappState.detection.baselineProgress = Math.min(1, elapsedS / X_BASELINE_WINDOW_S);
+        xappState.detection.baselineReady    = elapsedS >= X_BASELINE_WINDOW_S;
+    }
+
+    function xappRunDetection(ues, cells, jammerData) {
+        const det = xappState.detection;
+        det.loopholes = [];
+        det.estimatedJammers = [];
+        det.matchedErrors = [];
+        det.totalUes = ues.length;
+        det.affectedUes = 0;
+        det.confidence = 0;
+
+        if (xappState.lastStatus !== 'on') return;
+
+        // Per-UE current SINR + drop vs baseline
+        const dropList = [];   // affected UEs (drop > threshold)
+        const currentSinrs = [];
+        ues.forEach(ue => {
+            const uid  = ue.ue_id;
+            const hist = xappState.sinrHistory[uid] || [];
+            if (hist.length === 0) return;
+            const current = hist[hist.length - 1].sinr;
+            currentSinrs.push(current);
+            const b = xappState.baseline[uid];
+            if (!b || b.n < 3) return;
+            const drop = b.mean - current;
+            if (drop > X_SINR_DROP_THRESH) {
+                dropList.push({
+                    ue_id: uid,
+                    x: ue.x_position,
+                    y: ue.y_position,
+                    drop: drop,
+                    currentSinr: current,
+                    baselineSinr: b.mean,
+                });
+            }
+        });
+        det.affectedUes = dropList.length;
+
+        // L1 loophole — SINR drop on N UEs
+        if (dropList.length > 0) {
+            det.loopholes.push(`L1: SINR drop ≥${X_SINR_DROP_THRESH}dB on ${dropList.length} UE${dropList.length>1?'s':''}`);
+        }
+
+        // L3 loophole — cross-UE SINR std (high variance across cells)
+        if (currentSinrs.length >= 3) {
+            const m = currentSinrs.reduce((a,b)=>a+b,0) / currentSinrs.length;
+            const v = currentSinrs.reduce((a,b)=>a+(b-m)*(b-m),0) / currentSinrs.length;
+            const sd = Math.sqrt(v);
+            if (sd > X_CROSS_STD_THRESH) {
+                det.loopholes.push(`L3: cross-UE SINR std = ${sd.toFixed(1)}dB`);
+            }
+        }
+
+        // L4 loophole — explicit SINR threshold (the form's input)
+        const sinrTh = parseFloat(document.getElementById('sinrThreshold').value);
+        const jamTh  = Number.isFinite(sinrTh) ? sinrTh : 0;
+        const belowTh = currentSinrs.filter(s => s < jamTh).length;
+        if (belowTh > 0) {
+            det.loopholes.push(`L4: ${belowTh} UE${belowTh>1?'s':''} below ${jamTh.toFixed(1)}dB threshold`);
+        }
+
+        det.active     = det.loopholes.length > 0;
+        // Confidence: blend of % affected UEs and number of loopholes fired
+        const affectedFrac = det.totalUes > 0 ? det.affectedUes / det.totalUes : 0;
+        det.confidence = Math.max(0, Math.min(100, Math.round(
+            affectedFrac * 70 + det.loopholes.length * 15
+        )));
+
+        // ── Multi-jammer WCL localization ────────────────────────────────────
+        if (dropList.length >= 1) {
+            // Use the form's N_Jammers as k — same number the user is simulating
+            const nJam   = parseInt(document.getElementById('N_Jammers').value || '1', 10);
+            const enabled = document.getElementById('JammerEnabled').checked;
+            const k       = enabled ? Math.min(Math.max(nJam, 1), dropList.length) : 1;
+            det.estimatedJammers = xappWeightedKMeans(dropList, k);
+        }
+
+        // ── Match estimates to GT jammers (greedy nearest, Hungarian-style) ──
+        const gt = xappReadGtJammers();
+        if (gt.length > 0 && det.estimatedJammers.length > 0) {
+            det.matchedErrors = xappMatch(det.estimatedJammers, gt);
+        } else if (gt.length > 0) {
+            det.matchedErrors = gt.map(g => ({ gt: g, est: null, error: null }));
+        }
+    }
+
+    function xappWeightedKMeans(points, k) {
+        // points: [{x,y,drop,ue_id}] — weight = drop (dB SINR degradation)
+        if (k <= 1 || points.length <= 1) {
+            const tw = points.reduce((a, p) => a + p.drop, 0);
+            if (tw < 1e-6) return [];
+            const cx = points.reduce((a, p) => a + p.x * p.drop, 0) / tw;
+            const cy = points.reduce((a, p) => a + p.y * p.drop, 0) / tw;
+            return [{
+                x: cx, y: cy, ueCount: points.length, totalWeight: tw,
+                ueIds: points.map(p => p.ue_id)
+            }];
+        }
+        // Seed: top-k highest-drop UEs as initial centroids
+        const sorted = [...points].sort((a, b) => b.drop - a.drop);
+        let centroids = sorted.slice(0, k).map(p => ({ x: p.x, y: p.y }));
+        for (let it = 0; it < X_KMEANS_ITERS; it++) {
+            const groups = Array.from({length: k}, () => []);
+            points.forEach(p => {
+                let best = 0, bestD = Infinity;
+                for (let i = 0; i < k; i++) {
+                    const dx = p.x - centroids[i].x, dy = p.y - centroids[i].y;
+                    const d = dx*dx + dy*dy;
+                    if (d < bestD) { bestD = d; best = i; }
+                }
+                groups[best].push(p);
+            });
+            const newC = centroids.map((c, i) => {
+                if (groups[i].length === 0) return c;
+                const tw = groups[i].reduce((a, p) => a + p.drop, 0);
+                if (tw < 1e-6) return c;
+                return {
+                    x: groups[i].reduce((a, p) => a + p.x * p.drop, 0) / tw,
+                    y: groups[i].reduce((a, p) => a + p.y * p.drop, 0) / tw,
+                };
+            });
+            centroids = newC;
+        }
+        // Final assignment for reporting
+        const groups = Array.from({length: k}, () => []);
+        points.forEach(p => {
+            let best = 0, bestD = Infinity;
+            for (let i = 0; i < k; i++) {
+                const dx = p.x - centroids[i].x, dy = p.y - centroids[i].y;
+                const d = dx*dx + dy*dy;
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            groups[best].push(p);
+        });
+        return centroids.map((c, i) => ({
+            x: c.x, y: c.y,
+            ueCount: groups[i].length,
+            totalWeight: groups[i].reduce((a, p) => a + p.drop, 0),
+            ueIds: groups[i].map(p => p.ue_id)
+        }));
+    }
+
+    function xappReadGtJammers() {
+        const enabled = document.getElementById('JammerEnabled').checked;
+        if (!enabled) return [];
+        const n = parseInt(document.getElementById('N_Jammers').value || '0', 10);
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            const xEl = document.getElementById(`Jammer${i}X`);
+            const yEl = document.getElementById(`Jammer${i}Y`);
+            const tEl = document.getElementById(`Jammer${i}Type`);
+            if (!xEl || !yEl) continue;
+            const x = parseFloat(xEl.value);
+            const y = parseFloat(yEl.value);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+            const tIdx = tEl ? parseInt(tEl.value, 10) : 0;
+            out.push({ x: x, y: y, id: i, type: jammerTypeNames[tIdx] || 'UNKNOWN' });
+        }
+        return out;
+    }
+
+    function xappMatch(estimates, gt) {
+        // Greedy minimum-distance assignment (Hungarian-equivalent for small k)
+        const used = new Set();
+        const out  = [];
+        for (let gi = 0; gi < gt.length; gi++) {
+            let bestI = -1, bestErr = Infinity;
+            for (let ei = 0; ei < estimates.length; ei++) {
+                if (used.has(ei)) continue;
+                const dx = gt[gi].x - estimates[ei].x;
+                const dy = gt[gi].y - estimates[ei].y;
+                const e  = Math.sqrt(dx*dx + dy*dy);
+                if (e < bestErr) { bestErr = e; bestI = ei; }
+            }
+            if (bestI >= 0) {
+                used.add(bestI);
+                out.push({ gt: gt[gi], est: estimates[bestI], error: bestErr });
+            } else {
+                out.push({ gt: gt[gi], est: null, error: null });
+            }
+        }
+        return out;
+    }
+
+    function xappRenderUI() {
+        const det    = xappState.detection;
+        const banner = document.getElementById('alert-banner');
+        const dot    = document.getElementById('det-status-dot');
+        const txt    = document.getElementById('det-status-text');
+
+        if (det.active) {
+            banner.classList.add('active');
+            document.getElementById('alert-text').textContent =
+                `JAMMING DETECTED — ${det.affectedUes}/${det.totalUes} UEs degraded · ` +
+                `Confidence ${det.confidence}% · Loopholes: ${det.loopholes.length}`;
+            dot.style.background = '#ff2d2d';
+            dot.style.boxShadow  = '0 0 14px #ff2d2d';
+            txt.textContent      = 'JAMMING DETECTED';
+            txt.style.color      = '#ff5252';
+        } else {
+            banner.classList.remove('active');
+            dot.style.background = '#4caf50';
+            dot.style.boxShadow  = '0 0 8px #4caf50';
+            txt.textContent      = xappState.lastStatus === 'on'
+                ? (det.baselineReady ? 'MONITORING — no jamming detected'
+                                      : 'COLLECTING BASELINE…')
+                : 'IDLE — start a simulation to begin monitoring';
+            txt.style.color      = '#a5d6a7';
+        }
+        document.getElementById('det-confidence').textContent = det.confidence + '%';
+        document.getElementById('det-affected').textContent   = `${det.affectedUes} / ${det.totalUes}`;
+        document.getElementById('det-num-est').textContent    = det.estimatedJammers.length;
+        document.getElementById('det-baseline').textContent   = det.baselineReady
+            ? 'ready'
+            : (xappState.lastStatus === 'on'
+                ? `${Math.round(det.baselineProgress * 100)}% (${X_BASELINE_WINDOW_S}s window)`
+                : 'collecting…');
+        document.getElementById('det-loopholes').textContent  = det.loopholes.length > 0
+            ? det.loopholes.join('   ·   ')
+            : 'none';
+
+        // Per-jammer localization cards
+        const container = document.getElementById('jammer-localization-cards');
+        container.innerHTML = '';
+        if (det.matchedErrors.length === 0) {
+            const placeholder = document.createElement('div');
+            placeholder.style.cssText = 'color:#777;font-style:italic;padding:14px;border:1px dashed #333;border-radius:6px;text-align:center;grid-column:1/-1;';
+            placeholder.textContent = xappState.lastStatus === 'on'
+                ? (det.baselineReady
+                    ? 'No jamming signature detected — UEs are operating within baseline SINR tolerance.'
+                    : 'Collecting clean-channel baseline… localization will activate once jammers begin to degrade SINR.')
+                : 'Configure jammers above and click Start new — live localization will appear here once the simulation runs.';
+            container.appendChild(placeholder);
+            return;
+        }
+        det.matchedErrors.forEach((m, i) => {
+            const card = document.createElement('div');
+            card.className = 'loc-card';
+            let errCls = 'lc-err-na', errTxt = '—';
+            if (m.error !== null && m.error !== undefined) {
+                errTxt = m.error.toFixed(1) + ' m';
+                errCls = m.error < 50 ? 'lc-err-good' : (m.error < 150 ? 'lc-err-ok' : 'lc-err-bad');
+            }
+            const estTxt = m.est ? `(${m.est.x.toFixed(0)}, ${m.est.y.toFixed(0)}) m` : '— (no signal yet)';
+            const ueCnt  = m.est ? m.est.ueCount : 0;
+            const tw     = m.est ? m.est.totalWeight.toFixed(1) : '0';
+            card.innerHTML = `
+                <div class="lc-title">
+                    <span>Jammer #${i+1}</span>
+                    <span class="lc-type">GT type: ${m.gt.type}</span>
+                </div>
+                <div class="lc-grid">
+                    <span class="lc-k">Ground truth:</span><span>(${m.gt.x.toFixed(0)}, ${m.gt.y.toFixed(0)}) m</span>
+                    <span class="lc-k">Estimated (WCL):</span><span>${estTxt}</span>
+                    <span class="lc-k">Distance error:</span><span class="${errCls}">${errTxt}</span>
+                    <span class="lc-k">UEs in cluster:</span><span>${ueCnt}</span>
+                    <span class="lc-k">Σ SINR drop:</span><span>${tw} dB</span>
+                </div>`;
+            container.appendChild(card);
+        });
+    }
+
+    // Initial render so the panel doesn't sit empty before the first poll
+    xappRenderUI();
+
+    // ════════════════════════════════════════════════════════════════════════
+    // PROCESS CONTROL — talks to process_manager.py (port 38867)
+    // ════════════════════════════════════════════════════════════════════════
+    // Lets the user start/stop the RIC, KPM xApp and Python localizer from
+    // the dashboard and watch their live logs. Each card polls /status every
+    // 2 s; the log viewer polls /logs/<name> every 1 s for the selected
+    // process. If process_manager.py isn't running, the warning banner shows
+    // and the buttons are disabled — the rest of the dashboard still works.
+    // ────────────────────────────────────────────────────────────────────────
+    const PM_URL = 'http://' + window.location.hostname + ':38867';   // host-side process_manager.py
+    const PC_DEFS = [
+        { name: "ric",       label: "FlexRIC core",       desc: "nearRT-RIC (E2 termination)",      manageable: true  },
+        { name: "xapp",      label: "KPM xApp",           desc: "xapp_kpm_moni → kpi_dashboard.csv", manageable: true  },
+        { name: "ns3",       label: "ns-3 simulation",    desc: "started via Scenario form below",   manageable: false },
+        { name: "localizer", label: "Localizer (Python)", desc: "jammer_xapp_localizer_v2.py",       manageable: true  },
+    ];
+    const pcState = {
+        active:        null,   // currently-viewed log name
+        pmReachable:   false,
+        autoRefresh:   true,
+        autoscroll:    true,
+        lastStatus:    {},     // name -> last status response
+        logTimer:      null,
+    };
+
+    function pcBuildCards() {
+        const grid = document.getElementById('pc-grid');
+        grid.innerHTML = '';
+        PC_DEFS.forEach(def => {
+            const card = document.createElement('div');
+            card.className = 'pc-card';
+            card.id = `pc-card-${def.name}`;
+            const manageBtns = def.manageable
+                ? `<button type="button" class="pc-btn" id="pc-start-${def.name}" onclick="pcStart('${def.name}')">▶ Start</button>
+                   <button type="button" class="pc-btn danger" id="pc-stop-${def.name}" onclick="pcStop('${def.name}')">■ Stop</button>`
+                : `<button type="button" class="pc-btn" disabled title="ns-3 is started from the Scenario form below">▶ via form</button>`;
+            card.innerHTML = `
+                <div class="pc-head">
+                    <span class="pc-led stopped" id="pc-led-${def.name}"></span>
+                    <span>${def.label}</span>
+                </div>
+                <div class="pc-meta">
+                    <div style="color:#aaa;">${def.desc}</div>
+                    <div><span class="pc-k">Status:</span> <span id="pc-text-${def.name}">unknown</span></div>
+                    <div><span class="pc-k">PID:</span> <span id="pc-pid-${def.name}">—</span>
+                         &nbsp;<span class="pc-k">Up:</span> <span id="pc-up-${def.name}">—</span></div>
+                </div>
+                <div class="pc-actions">
+                    ${manageBtns}
+                    <button type="button" class="pc-btn logs" id="pc-logs-${def.name}" onclick="pcSelectLog('${def.name}')">Logs ▸</button>
+                </div>`;
+            grid.appendChild(card);
+        });
+    }
+
+    function pcFmtUptime(s) {
+        if (!s || s < 1) return '—';
+        if (s < 60)    return Math.round(s) + 's';
+        if (s < 3600)  return Math.floor(s/60) + 'm ' + Math.round(s%60) + 's';
+        return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+    }
+
+    async function pcPollStatus() {
+        try {
+            const r = await fetch(`${PM_URL}/status`, { cache: 'no-store' });
+            if (!r.ok) throw new Error('bad status');
+            const data = await r.json();
+            pcState.pmReachable = true;
+            pcState.lastStatus = data;
+            document.getElementById('pc-pm-warn').classList.remove('show');
+            PC_DEFS.forEach(def => {
+                const st  = data[def.name] || {};
+                const led = document.getElementById(`pc-led-${def.name}`);
+                const txt = document.getElementById(`pc-text-${def.name}`);
+                const pid = document.getElementById(`pc-pid-${def.name}`);
+                const up  = document.getElementById(`pc-up-${def.name}`);
+                if (st.running) {
+                    led.className = 'pc-led running';
+                    txt.textContent = 'RUNNING';
+                    txt.style.color = '#a5d6a7';
+                } else if (st.log_size > 0 && !def.manageable) {
+                    // ns-3 case: log exists, may or may not be active
+                    led.className = 'pc-led running';
+                    txt.textContent = 'LOG ACTIVE';
+                    txt.style.color = '#a5d6a7';
+                } else {
+                    led.className = 'pc-led stopped';
+                    txt.textContent = 'stopped';
+                    txt.style.color = '#888';
+                }
+                pid.textContent = st.pid || '—';
+                up.textContent  = pcFmtUptime(st.uptime_s);
+                if (def.manageable) {
+                    const sb = document.getElementById(`pc-start-${def.name}`);
+                    const sp = document.getElementById(`pc-stop-${def.name}`);
+                    if (sb) sb.disabled = !!st.running;
+                    if (sp) sp.disabled = !st.running;
+                }
+            });
+        } catch (e) {
+            pcState.pmReachable = false;
+            document.getElementById('pc-pm-warn').classList.add('show');
+            PC_DEFS.forEach(def => {
+                if (!def.manageable) return;
+                const sb = document.getElementById(`pc-start-${def.name}`);
+                const sp = document.getElementById(`pc-stop-${def.name}`);
+                if (sb) sb.disabled = true;
+                if (sp) sp.disabled = true;
+                const led = document.getElementById(`pc-led-${def.name}`);
+                const txt = document.getElementById(`pc-text-${def.name}`);
+                if (led) led.className = 'pc-led stopped';
+                if (txt) { txt.textContent = 'no manager'; txt.style.color = '#777'; }
+            });
+        }
+    }
+
+    async function pcStart(name) {
+        try {
+            const r = await fetch(`${PM_URL}/start/${name}`, { method: 'POST' });
+            const j = await r.json();
+            if (!j.ok) alert(`Failed to start ${name}: ${j.error || 'unknown error'}`);
+        } catch (e) { alert(`Could not reach process_manager: ${e.message}`); }
+        pcPollStatus();
+    }
+    async function pcStop(name) {
+        try {
+            const r = await fetch(`${PM_URL}/stop/${name}`, { method: 'POST' });
+            await r.json();
+        } catch (e) { alert(`Could not reach process_manager: ${e.message}`); }
+        pcPollStatus();
+    }
+
+    async function localizerStart() {
+        const btn = document.getElementById('loc_start_btn');
+        const status = document.getElementById('loc_status');
+        const pid = document.getElementById('loc_pid');
+        const payload = {
+            jam_start:  document.getElementById('loc_jam_start').value,
+            jam_stop:   document.getElementById('loc_jam_stop').value,
+            sim_time:   document.getElementById('loc_sim_time').value,
+            n_jammers:  document.getElementById('loc_n_jammers').value,
+        };
+        status.textContent = 'starting...';
+        try {
+            const r = await fetch(`${PM_URL}/start_localizer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const j = await r.json();
+            if (j.ok) {
+                status.textContent = 'running';
+                pid.textContent = j.pid || '—';
+                btn.disabled = true;
+            } else {
+                status.textContent = 'error';
+                alert(`Failed to start localizer: ${j.error || 'unknown error'}`);
+            }
+        } catch (e) {
+            status.textContent = 'unreachable';
+            alert(`Could not reach process_manager: ${e.message}`);
+        }
+        pcPollStatus();
+    }
+
+    async function localizerStop() {
+        const btn = document.getElementById('loc_start_btn');
+        const status = document.getElementById('loc_status');
+        const pid = document.getElementById('loc_pid');
+        status.textContent = 'stopping...';
+        try {
+            const r = await fetch(`${PM_URL}/stop/localizer`, { method: 'POST' });
+            await r.json();
+            status.textContent = 'idle';
+            pid.textContent = '—';
+            btn.disabled = false;
+        } catch (e) {
+            status.textContent = 'unreachable';
+            alert(`Could not reach process_manager: ${e.message}`);
+        }
+        pcPollStatus();
+    }
+
+    function pcSelectLog(name) {
+        pcState.active = name;
+        document.getElementById('pc-log-active').textContent = name;
+        // Highlight active logs button
+        PC_DEFS.forEach(d => {
+            const b = document.getElementById(`pc-logs-${d.name}`);
+            if (b) b.classList.toggle('active', d.name === name);
+        });
+        pcRefreshLog();
+    }
+
+    async function pcRefreshLog() {
+        if (!pcState.active) return;
+        try {
+            const r = await fetch(`${PM_URL}/logs/${pcState.active}?lines=400`, { cache: 'no-store' });
+            const j = await r.json();
+            const pre = document.getElementById('pc-log-pre');
+            pre.textContent = j.log || '(empty)';
+            if (document.getElementById('pc-autoscroll').checked) {
+                pre.scrollTop = pre.scrollHeight;
+            }
+        } catch (e) {
+            document.getElementById('pc-log-pre').textContent =
+                `[could not reach /process/logs endpoint]\n${e.message}`;
+        }
+    }
+
+
+    async function pcClearLogs() {
+        if (!pcState.active) return;
+        try {
+            await fetch(PM_URL + '/logs/' + pcState.active + '?clear=1', { method: 'POST' });
+            pcRefreshLog();
+        } catch(e) { alert('Could not clear logs'); }
+    }
+
+    function pcClearViewer() {
+        document.getElementById('pc-log-pre').textContent = '(cleared — next auto-refresh will repopulate)';
+    }
+
+    // Init
+    pcBuildCards();
+    pcPollStatus();
+    setInterval(pcPollStatus, 2000);
+    setInterval(() => {
+        if (pcState.active && document.getElementById('pc-autorefresh').checked) pcRefreshLog();
+    }, 1000);
+
+    // keyed by ue_id → {x, y, t}; used to estimate speed from position delta
+    const _prevUESnap = new Map();
+    setInterval(refreshGrid, 2000);
+    refreshGrid();
+    requestAnimationFrame(animateEmission);
+
+    function sendForm(endpoint) {
+        resetSim('/reset_simulation', true);
+        const form = document.getElementById('scenarioForm');
+        const formData = new FormData(form);
+        const data = {};
+        formData.forEach((value, key) => {
+            if (value.trim() !== '') data[key] = value;
+        });
+        if (!document.getElementById('JammerEnabled').checked) {
+            delete data.JammerEnabled;
+        }
+        const statusLabel = document.getElementById('status_label');
+        const startButton = document.getElementById('start_button');
+        const stopButton = document.getElementById('stop_button');
+        statusLabel.textContent = 'Simulation starting';
+        startButton.disabled = true;
+        stopButton.disabled = false;
+        fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+            .then(r => { if (!r.ok) throw new Error('Network response was not ok'); return r.json(); })
+            .then(() => {
+                statusLabel.textContent = 'Simulation running';
+                document.getElementById('warning_label').textContent =
+                    'If no Cells/UEs/Jammers appear within ~30s, check ns3_run.log on the server.';
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                statusLabel.textContent = 'Error while starting up the simulation';
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            });
+    }
+
+    function stopSim(endpoint) {
+        const statusLabel = document.getElementById('status_label');
+        statusLabel.textContent = 'Stopping simulation';
+        document.getElementById('start_button').disabled = false;
+        document.getElementById('stop_button').disabled = true;
+        fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+            .then(r => { if (!r.ok) throw new Error('Network response was not ok'); return r.json(); })
+            .then(() => { statusLabel.textContent = 'Simulation stopped'; })
+            .catch(err => {
+                console.error('Error:', err);
+                statusLabel.textContent = 'Error encountered while stopping the simulation';
+            });
+    }
+
+    function resetSim(endpoint, silent) {
+        const statusLabel = document.getElementById('status_label');
+        if (!silent) statusLabel.textContent = 'Resetting simulation';
+        document.getElementById('simid_label').textContent = '';
+        fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+            .then(r => { if (!r.ok) throw new Error('Network response was not ok'); return r.json(); })
+            .catch(err => console.error('Error:', err));
+    }
+
+    document.getElementById('scenarioForm').addEventListener('submit', e => e.preventDefault());
+
+    // ── UI Scale control ────────────────────────────────────────────────────
+    (function initScale() {
+        var SCALE_KEY = 'flexric_ui_scale';
+        var currentScale = parseFloat(localStorage.getItem(SCALE_KEY) || '1');
+        function applyScale(s) {
+            currentScale = Math.max(0.4, Math.min(2.5, Math.round(s * 10) / 10));
+            var container = document.getElementById('page');
+            if (container) container.style.zoom = currentScale;
+            var disp = document.getElementById('scale-display');
+            if (disp) disp.textContent = Math.round(currentScale * 100) + '%';
+            localStorage.setItem(SCALE_KEY, currentScale);
+        }
+        window.uiAdjustScale = function(d) { applyScale(currentScale + d); };
+        window.uiResetScale  = function()  { applyScale(1); };
+        applyScale(currentScale);
+    })();
+</script>
+
+<!-- floating scale control -->
+<div id="scale-ctrl" style="position:fixed;bottom:18px;right:18px;z-index:9999;background:#1a1a1a;border:1px solid #383838;border-radius:10px;padding:6px 10px;display:flex;align-items:center;gap:7px;box-shadow:0 4px 20px rgba(0,0,0,0.65);font-family:'Roboto',sans-serif;">
+    <span style="color:#ff8c00;font-size:10px;letter-spacing:0.6px;font-weight:700;user-select:none;">SCALE</span>
+    <button onclick="uiAdjustScale(-0.1)" style="background:#2a2a2a;color:#ff8c00;border:1px solid #444;border-radius:5px;width:26px;height:26px;cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;">&#8722;</button>
+    <span id="scale-display" style="color:#ffd699;font-size:12px;min-width:38px;text-align:center;font-weight:700;">100%</span>
+    <button onclick="uiAdjustScale(0.1)" style="background:#2a2a2a;color:#ff8c00;border:1px solid #444;border-radius:5px;width:26px;height:26px;cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;">+</button>
+    <button onclick="uiResetScale()" title="Reset to 100%" style="background:#2a2a2a;color:#666;border:1px solid #444;border-radius:5px;padding:0 7px;height:26px;cursor:pointer;font-size:12px;">&#8634;</button>
+</div>
+</body>
+</html>
+
