@@ -193,3 +193,7 @@ ns-3 (`ns3_modified_files/`, `scenario/`) are distributed under the GNU GPL v2, 
 
 Steve Azarsh Ratti – DISIM Department, University of L'Aquila, Italy –
 steveazarsh.ratti@graduate.univaq.it
+
+## Dashboard screenshot
+
+![Jammer dashboard](docs/dashboard_jammer.png)
