@@ -43,7 +43,10 @@
 #include <ns3/antenna-model.h>
 #include <ns3/attribute-accessor-helper.h>
 #include <ns3/average.h>
+#include <ns3/abort.h>
+#include <ns3/boolean.h>
 #include <ns3/double.h>
+#include <fstream>
 #include <ns3/log.h>
 #include <ns3/node-list.h>
 #include <ns3/node.h>
@@ -71,6 +74,34 @@ namespace mmwave
 NS_LOG_COMPONENT_DEFINE("MmWaveEnbPhy");
 
 NS_OBJECT_ENSURE_REGISTERED(MmWaveEnbPhy);
+
+// JAMMER PATCH: jammers registered from the scenario
+std::vector<MmWaveEnbPhy::JammerInfo> MmWaveEnbPhy::s_jammers;
+static std::ofstream g_jammerRxLog; // JAMMER PATCH: MmWaveJammerRx.txt (S, J, N per UE and cell)
+
+void
+MmWaveEnbPhy::AddJammer(Ptr<MobilityModel> jammerMobility,
+                        double txPowerDbm,
+                        Ptr<PropagationLossModel> pathLossModel)
+{
+    NS_ABORT_MSG_IF(!jammerMobility, "Jammer mobility model not set");
+    NS_ABORT_MSG_IF(!pathLossModel, "Jammer path-loss model not set");
+    JammerInfo info;
+    info.mobility = jammerMobility;
+    info.txPowerDbm = txPowerDbm;
+    info.pathLoss = pathLossModel;
+    s_jammers.push_back(info);
+}
+
+void
+MmWaveEnbPhy::ClearJammers()
+{
+    s_jammers.clear();
+    if (g_jammerRxLog.is_open())
+    {
+        g_jammerRxLog.close();
+    }
+}
 
 MmWaveEnbPhy::MmWaveEnbPhy()
 {
@@ -122,6 +153,14 @@ MmWaveEnbPhy::GetTypeId(void)
                           DoubleValue(25.6),
                           MakeDoubleAccessor(&MmWaveEnbPhy::m_ueUpdateSinrPeriod),
                           MakeDoubleChecker<double>())
+            .AddAttribute("DlSinrWithJammers",
+                          "JAMMER PATCH. If true, the per-UE L3 SINR estimate is the downlink SINR "
+                          "at the UE, S/(N_UE + J), where S uses the gNB transmit power, N_UE the "
+                          "UE noise figure and J the power received from the jammers registered "
+                          "with MmWaveEnbPhy::AddJammer. If false, the original SNR is used.",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&MmWaveEnbPhy::m_dlSinrWithJammers),
+                          MakeBooleanChecker())
             .AddAttribute("Transient",
                           "Transient period (in microseconds) in which just collect SINR values "
                           "without filtering the sample",
@@ -592,6 +631,10 @@ MmWaveEnbPhy::UpdateUeSinrEstimate()
         MmWaveSpectrumValueHelper::CreateNoisePowerSpectralDensity(m_phyMacConfig, m_noiseFigure);
     Ptr<SpectrumValue> totalReceivedPsd =
         Create<SpectrumValue>(SpectrumValue(noisePsd->GetSpectrumModel()));
+    // JAMMER PATCH: per-UE values needed for the downlink SINR
+    std::map<uint64_t, double> ueTxPowerDbm;
+    std::map<uint64_t, double> ueNoiseFigureDb;
+    std::map<uint64_t, Ptr<MobilityModel>> ueMobility;
 
     for (std::map<uint64_t, Ptr<NetDevice>>::iterator ue = m_ueAttachedImsiMap.begin();
          ue != m_ueAttachedImsiMap.end();
@@ -685,6 +728,9 @@ MmWaveEnbPhy::UpdateUeSinrEstimate()
         }
 
         NS_LOG_LOGIC("RxPsd " << *rxPsd);
+        ueTxPowerDbm[ue->first] = ueTxPower; // JAMMER PATCH
+        ueNoiseFigureDb[ue->first] = uePhy->GetNoiseFigure();
+        ueMobility[ue->first] = ueMob;
 
         m_rxPsdMap[ue->first] = rxPsd ; //txPsd->Copy();;
         *totalReceivedPsd += *rxPsd;
@@ -718,6 +764,51 @@ MmWaveEnbPhy::UpdateUeSinrEstimate()
         NS_LOG_LOGIC("interference " << interference);
         SpectrumValue sinr = *(ue->second) / (*noisePsd); // + interference);
         // we consider the SNR only!
+        if (m_dlSinrWithJammers)
+        {
+            // JAMMER PATCH: downlink SINR at the UE receiver. Same (reciprocal) path loss and
+            // beamforming gain as above, gNB transmit power, UE noise figure, plus jammers.
+            uint64_t imsi = ue->first;
+            double dlScale = std::pow(10.0, (m_txPower - ueTxPowerDbm[imsi]) / 10.0);
+            SpectrumValue dlSignal = (*(ue->second)) * dlScale;
+            Ptr<SpectrumValue> ueNoisePsd =
+                MmWaveSpectrumValueHelper::CreateNoisePowerSpectralDensity(m_phyMacConfig,
+                                                                           ueNoiseFigureDb[imsi]);
+            SpectrumValue denominator = *ueNoisePsd;
+            double jamTotalW = 0.0; // JAMMER PATCH: total jammer power at the UE
+            for (const auto& jam : s_jammers)
+            {
+                double jamRxDbm =
+                    jam.pathLoss->CalcRxPower(jam.txPowerDbm, jam.mobility, ueMobility[imsi]);
+                Ptr<SpectrumValue> jamPsd =
+                    MmWaveSpectrumValueHelper::CreateTxPowerSpectralDensity(m_phyMacConfig,
+                                                                            jam.txPowerDbm,
+                                                                            m_listOfSubchannels);
+                *jamPsd *= std::pow(10.0, (jamRxDbm - jam.txPowerDbm) / 10.0);
+                denominator += *jamPsd;
+                jamTotalW += Integral(*jamPsd);
+                NS_LOG_DEBUG("Cell " << m_cellId << " UE " << imsi << " jammer rx power "
+                                     << jamRxDbm << " dBm");
+            }
+            sinr = dlSignal / denominator;
+            // JAMMER PATCH: log received signal (RSRP-like), jammer and noise power once
+            // per UE SINR report period (every UpdateUeSinrEstimatePeriod, 25.6 ms)
+            if (m_roundFromLastUeSinrUpdate == 0)
+            {
+                if (!g_jammerRxLog.is_open())
+                {
+                    g_jammerRxLog.open("MmWaveJammerRx.txt", std::ios_base::out | std::ios_base::trunc);
+                    g_jammerRxLog << "time_s imsi cellId S_dBm J_dBm N_dBm sinr_dB" << std::endl;
+                }
+                double sW = Integral(dlSignal);
+                double nW = Integral(*ueNoisePsd);
+                double sinrLin = Sum(sinr) / (sinr.GetSpectrumModel()->GetNumBands());
+                g_jammerRxLog << Simulator::Now().GetSeconds() << " " << imsi << " " << m_cellId << " "
+                              << 10 * std::log10(sW) + 30 << " "
+                              << (jamTotalW > 0 ? 10 * std::log10(jamTotalW) + 30 : -999.0) << " "
+                              << 10 * std::log10(nW) + 30 << " " << 10 * std::log10(sinrLin) << "\n";
+            }
+        }
         NS_LOG_LOGIC("sinr " << sinr);
         double sinrAvg = Sum(sinr) / (sinr.GetSpectrumModel()->GetNumBands());
         NS_LOG_DEBUG("Time " << Simulator::Now().GetSeconds() << " CellId " << m_cellId << " UE "
