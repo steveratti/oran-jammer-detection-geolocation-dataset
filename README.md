@@ -198,4 +198,6 @@ steveazarsh.ratti@graduate.univaq.it
 
 ![Jammer dashboard](code/docs/dashboard_jammer.png)
 
+▶ [Watch the live handover demo (16 s)](code/docs/handover_demo.mp4)
+
 See [`code/`](code/) for the scenario, GUI and offline analysis.
