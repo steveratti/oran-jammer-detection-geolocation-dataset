@@ -847,6 +847,11 @@
             <div>
                 <label for="IntersideDistanceCells">IntersideDistanceCells (m):</label>
                 <input type="number" id="IntersideDistanceCells" name="IntersideDistanceCells" value="600">
+                <label for="Numerology">Numerology (&mu;):</label>
+                <select id="Numerology" name="Numerology">
+                    <option value="2" selected>&mu;=2 &middot; 60 kHz SCS (0.25 ms slot)</option>
+                    <option value="3">&mu;=3 &middot; 120 kHz SCS (0.125 ms slot)</option>
+                </select>
             </div>
             <div class="section-header"><span class="dot"></span><span>Mobility &amp; Scenario</span></div>
             <div>
@@ -1586,6 +1591,220 @@
                    });
     }();
 
+    // ── Handover monitor (added) ────────────────────────────────────────────
+    const HO_FLASH_MS = 8000;
+    const _hoPrev = new Map();    // ue_id -> last serving mmWave cell (>0)
+    const _hoFlash = new Map();   // ue_id -> highlight expiry (ms)
+    let _hoLog = [];              // newest first
+    let _hoCount = 0;
+    let _hoSimId = null;
+    let _hoAttach = 0;
+    const _hoLteIds = new Set();
+    function hoSetCells(cells) { _hoLteIds.clear(); (cells || []).forEach(c => { if (c.type === 'lte') _hoLteIds.add(c.cell_id); }); }
+    function hoFmt(v, d) { const n = parseFloat(v); return Number.isFinite(n) ? n.toFixed(d) : '\u2014'; }
+    (function hoBuildPanel() {
+        const c = document.getElementById('myChart');
+        if (!c || document.getElementById('hoPanel')) return;
+        const holder = c.parentElement;
+        const p = document.createElement('div');
+        p.id = 'hoPanel';
+        p.style.cssText = 'background:#1a1a2e; border:1px solid #ff00ff; border-radius:8px; padding:10px; margin:0 0 10px 0; width:100%; box-sizing:border-box;';
+        p.innerHTML =
+            '<div style="display:flex; gap:18px; flex-wrap:wrap; align-items:baseline;">' +
+            '<b style="color:#ff00ff;">Handover monitor</b>' +
+            '<span>Handovers: <b id="hoCount" style="color:#ff00ff;">0</b></span>' +
+            '<span style="font-size:11px; opacity:.8;"><span style="color:#ff00ff;">&#9679;</span> magenta ring on the grid = UE just changed serving mmWave cell (8 s)</span>' +
+            '</div>' +
+            '<div id="hoUeList" style="margin-top:6px; font-size:12px; line-height:1.9;"></div>' +
+            '<div id="hoLog" style="margin-top:6px; font-size:12px; max-height:150px; overflow:auto;"></div>';
+        (holder.parentElement || holder).insertBefore(p, holder);
+    })();
+    // ── Handover lines + UE speed (added) ───────────────────────────────────
+    const _hoPrevPos = new Map();   // ue_id -> {x,y,t}
+    const _hoSpd = new Map();       // ue_id -> {v, est}
+    const _hoTrail = new Map();     // ue_id -> [{x,y}, ...]
+    let _hoMotSim = null;
+    let _hoDrawState = null;
+    let _hoOv = null;
+    function hoMotion(ues, simId) {
+        if (simId !== _hoMotSim) { _hoMotSim = simId; _hoPrevPos.clear(); _hoSpd.clear(); _hoTrail.clear(); }
+        const now = Date.now();
+        ues.forEach(ue => {
+            const x = parseFloat(ue.x_position), y = parseFloat(ue.y_position);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+            const given = parseFloat(ue.Speed_mps);
+            const prev = _hoPrevPos.get(ue.ue_id);
+            if (given > 0) {
+                _hoSpd.set(ue.ue_id, { v: given, est: false });
+            } else if (prev) {
+                const dt = (now - prev.t) / 1000;
+                if (dt > 0.3) {
+                    const inst = Math.hypot(x - prev.x, y - prev.y) / dt;
+                    const old = _hoSpd.get(ue.ue_id);
+                    _hoSpd.set(ue.ue_id, { v: old ? 0.6 * old.v + 0.4 * inst : inst, est: true });
+                }
+            }
+            if (!prev || Math.hypot(x - prev.x, y - prev.y) > 0.3 || now - prev.t > 1500) {
+                _hoPrevPos.set(ue.ue_id, { x: x, y: y, t: now });
+            }
+            let tr = _hoTrail.get(ue.ue_id);
+            if (!tr) { tr = []; _hoTrail.set(ue.ue_id, tr); }
+            const last = tr[tr.length - 1];
+            if (!last || Math.hypot(x - last.x, y - last.y) > 0.5) {
+                tr.push({ x: x, y: y });
+                if (tr.length > 40) tr.shift();
+            }
+        });
+    }
+    function hoSpd(id) {
+        const s = _hoSpd.get(id);
+        return s ? (s.est ? '~' : '') + s.v.toFixed(1) + ' m/s' : '— m/s';
+    }
+    function hoUpdateCfg() {
+        const cnt = document.getElementById('hoCount');
+        if (!cnt) return;
+        let el = document.getElementById('hoCfg');
+        if (!el) {
+            el = document.createElement('span');
+            el.id = 'hoCfg';
+            el.style.cssText = 'font-size:12px; color:#9cf;';
+            el.innerHTML = '<span id="hoCfgSpeed"></span> &nbsp; ' +
+                '<label style="cursor:pointer;"><input type="checkbox" id="hoLinks" checked> serving links</label> &nbsp; ' +
+                '<label style="cursor:pointer;"><input type="checkbox" id="hoTrails" checked> UE trails</label> &nbsp; ' +
+                '<label style="cursor:pointer;"><input type="checkbox" id="hoLteLinks" checked> LTE anchor lines</label> &nbsp; ' +
+                '<label style="cursor:pointer;"><input type="checkbox" id="hoLabels" checked> link labels</label>';
+            cnt.parentElement.parentElement.appendChild(el);
+            el.addEventListener('change', hoDraw);
+        }
+        const a = document.querySelector('[name="speedMin"]'), b = document.querySelector('[name="speedMax"]');
+        const sp = document.getElementById('hoCfgSpeed');
+        if (sp) sp.textContent = (a && b && a.value !== '' && b.value !== '')
+            ? 'UE speed set: ' + a.value + '–' + b.value + ' m/s' : '';
+    }
+    function hoGetOverlay(chart) {
+        const cv = chart.canvas;
+        if (!cv) return null;
+        const holder = cv.parentElement;
+        if (window.getComputedStyle(holder).position === 'static') holder.style.position = 'relative';
+        if (!_hoOv) {
+            _hoOv = document.createElement('canvas');
+            _hoOv.id = 'hoOverlay';
+            _hoOv.style.cssText = 'position:absolute; pointer-events:none; z-index:5;';
+            holder.appendChild(_hoOv);
+        }
+        _hoOv.style.left = cv.offsetLeft + 'px';
+        _hoOv.style.top = cv.offsetTop + 'px';
+        _hoOv.style.width = cv.clientWidth + 'px';
+        _hoOv.style.height = cv.clientHeight + 'px';
+        if (_hoOv.width !== cv.width || _hoOv.height !== cv.height) { _hoOv.width = cv.width; _hoOv.height = cv.height; }
+        return _hoOv;
+    }
+    function hoDrawSoon(chart, cells, ues, cellColorMap) {
+        _hoDrawState = { chart: chart, cells: cells || [], ues: ues || [], colors: cellColorMap };
+        setTimeout(hoDraw, 80);   // after chart.update() has fixed the axis scales
+    }
+    function hoDraw() {
+        const st = _hoDrawState;
+        if (!st) return;
+        const ov = hoGetOverlay(st.chart);
+        if (!ov) return;
+        const xs = st.chart.scales && st.chart.scales.x, ys = st.chart.scales && st.chart.scales.y;
+        const ctx = ov.getContext('2d');
+        const r = ov.width / (st.chart.canvas.clientWidth || 1);
+        ctx.setTransform(r, 0, 0, r, 0, 0);
+        ctx.clearRect(0, 0, ov.width, ov.height);
+        if (!xs || !ys) return;
+        const px = v => xs.getPixelForValue(v), py = v => ys.getPixelForValue(v);
+        const cellPos = new Map(st.cells.map(c => [c.cell_id, c]));
+        const now = Date.now();
+        const linksOn = (document.getElementById('hoLinks') || { checked: true }).checked;
+        const trailsOn = (document.getElementById('hoTrails') || { checked: true }).checked;
+        const line = (x1, y1, x2, y2, col, w, alpha, dash) => {
+            ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = w;
+            ctx.setLineDash(dash || []); ctx.beginPath();
+            ctx.moveTo(px(x1), py(y1)); ctx.lineTo(px(x2), py(y2)); ctx.stroke(); ctx.restore();
+        };
+        st.ues.forEach(ue => {
+            const ux = parseFloat(ue.x_position), uy = parseFloat(ue.y_position);
+            if (!Number.isFinite(ux) || !Number.isFinite(uy)) return;
+            const col = (st.colors && st.colors.get(ue.MMWave_Cell)) || '#ffffff';
+            if (trailsOn) {
+                const tr = _hoTrail.get(ue.ue_id) || [];
+                for (let i = 1; i < tr.length; i++) {
+                    line(tr[i - 1].x, tr[i - 1].y, tr[i].x, tr[i].y, col, 2.5, 0.15 + 0.65 * i / tr.length);
+                }
+            }
+            const cell = cellPos.get(ue.MMWave_Cell);
+            const hasMm = !!(cell && Number.isFinite(parseFloat(cell.x_position)));
+            const lteC = cellPos.get(ue.LTE_Cell);
+            const lteOn = (document.getElementById('hoLteLinks') || { checked: true }).checked;
+            const lblOn = (document.getElementById('hoLabels') || { checked: true }).checked;
+            if (linksOn && hasMm) line(ux, uy, cell.x_position, cell.y_position, col, 1.5, 0.6);
+            if (linksOn && lteOn && lteC && lteC !== cell && Number.isFinite(parseFloat(lteC.x_position))) {
+                line(ux, uy, lteC.x_position, lteC.y_position, '#ffffff', 1, 0.45, [3, 4]);
+            }
+            if (lblOn && hasMm) {
+                const mx = (px(ux) + px(cell.x_position)) / 2, my = (py(uy) + py(cell.y_position)) / 2;
+                const t = 'UE' + ue.ue_id + ' \u2194 cell ' + ue.MMWave_Cell
+                        + (lteC && lteC !== cell ? ' (LTE ' + ue.LTE_Cell + ')' : '');
+                ctx.save(); ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+                ctx.lineWidth = 3; ctx.strokeStyle = '#000000'; ctx.fillStyle = '#ffffff';
+                ctx.strokeText(t, mx, my); ctx.fillText(t, mx, my); ctx.restore();
+            }
+            if ((_hoFlash.get(ue.ue_id) || 0) > now) {
+                const ev = _hoLog.find(e => e.ue === ue.ue_id);
+                const oldc = ev && cellPos.get(ev.from), newc = ev && cellPos.get(ev.to);
+                if (oldc) line(oldc.x_position, oldc.y_position, ux, uy, '#ff00ff', 2, 0.9, [8, 6]);
+                if (newc) line(ux, uy, newc.x_position, newc.y_position, '#ff00ff', 4, 0.95);
+            }
+        });
+    }
+    window.addEventListener('resize', () => setTimeout(hoDraw, 200));
+    function hoTrack(ues, sinrMap, simId) {
+        if (simId !== _hoSimId) {
+            _hoSimId = simId; _hoPrev.clear(); _hoFlash.clear(); _hoLog = []; _hoCount = 0; _hoAttach = 0;
+        }
+        const now = Date.now();
+        ues.forEach(ue => {
+            const cell = parseInt(ue.MMWave_Cell, 10);
+            if (!(cell > 0)) return;              // 0/null = not attached to a mmWave cell
+            const prev = _hoPrev.get(ue.ue_id);
+            if (prev !== undefined && prev !== cell) {
+                const kind = _hoLteIds.has(prev) ? 'attach' : (_hoLteIds.has(cell) ? 'fallback' : 'handover');
+                if (kind === 'handover') { _hoCount++; _hoFlash.set(ue.ue_id, now + HO_FLASH_MS); } else { _hoAttach++; }
+                _hoLog.unshift({ t: new Date().toLocaleTimeString(), kind: kind, ue: ue.ue_id, from: prev, to: cell,
+                                 sinr: sinrMap[ue.ue_id], tp: ue.PDCP_Throughput_kbps, at: now });
+                if (_hoLog.length > 50) _hoLog.length = 50;
+            }
+            _hoPrev.set(ue.ue_id, cell);
+        });
+    }
+    function hoRender(ues, sinrMap, cellColorMap) {
+        const cnt = document.getElementById('hoCount');
+        if (!cnt) return;
+        const now = Date.now();
+        cnt.textContent = _hoCount + (_hoAttach ? ' (+' + _hoAttach + ' mmWave attach/fallback)' : '');
+        const hot = 'background:#ff00ff33; border:1px solid #ff00ff; border-radius:4px; padding:1px 5px;';
+        document.getElementById('hoUeList').innerHTML = ues
+            .filter(ue => parseInt(ue.MMWave_Cell, 10) > 0)
+            .map(ue => {
+                const col = cellColorMap.get(ue.MMWave_Cell) || '#ff8c00';
+                const st = (_hoFlash.get(ue.ue_id) || 0) > now ? hot : '';
+                return '<span style="margin-right:12px; white-space:nowrap; ' + st + '">'
+                     + '<span style="color:' + col + ';">&#9679;</span> UE' + ue.ue_id
+                     + ' &rarr; cell ' + ue.MMWave_Cell + (ue.LTE_Cell && ue.LTE_Cell !== ue.MMWave_Cell ? ' <span style="color:#aaa;">(LTE anchor ' + ue.LTE_Cell + ')</span>' : '')
+                     + ' (' + hoFmt(sinrMap[ue.ue_id], 1) + ' dB) <b style="color:#9cf;">' + hoSpd(ue.ue_id) + '</b></span>';
+            }).join('') || '<span style="color:#888;">no UE attached to a mmWave cell yet</span>';
+        document.getElementById('hoLog').innerHTML = _hoLog.length
+            ? _hoLog.map(e => {
+                const fresh = (now - e.at) < HO_FLASH_MS;
+                return '<div style="' + (e.kind !== 'handover' ? 'color:#7fd;' : (fresh ? 'color:#ff66ff; font-weight:bold;' : 'color:#bbb;')) + '">'
+                     + e.t + ' &nbsp; ' + (e.kind === 'attach' ? '[mmWave attach] ' : e.kind === 'fallback' ? '[fell back to LTE] ' : '[HANDOVER] ') + 'UE' + e.ue + ': cell ' + e.from + ' &rarr; cell ' + e.to
+                     + ' &nbsp;|&nbsp; SINR ' + hoFmt(e.sinr, 1) + ' dB'
+                     + ' &nbsp;|&nbsp; throughput ' + hoFmt(e.tp, 0) + ' kbps</div>';
+            }).join('')
+            : '<span style="color:#888;">no handover yet</span>';
+    }
     function updateChart() {
         fetch('/refresh-data')
                 .then(response => response.json())
@@ -1654,6 +1873,19 @@
 
                     myChart.data.datasets[0].data = ueData;
                     myChart.data.datasets[0].backgroundColor = ueData.map(ue => ue.backgroundColor);
+                    const _hoSinr = data.sinr || {};
+                    hoSetCells(data.cells || []);
+                    hoTrack(data.ues, _hoSinr, data.sim_id);
+                    const _hoNow = Date.now();
+                    const _isHo = u => (_hoFlash.get(u.ue_id) || 0) > _hoNow;
+                    myChart.data.datasets[0].borderColor = ueData.map(u => _isHo(u) ? '#ff00ff' : '#000000');
+                    myChart.data.datasets[0].borderWidth = ueData.map(u => _isHo(u) ? 5 : 2);
+                    myChart.data.datasets[0].pointRadius = ueData.map(u => _isHo(u) ? 15 : 8);
+                    hoMotion(data.ues, data.sim_id);
+                    ueData.forEach(u => { const q = _hoSpd.get(u.ue_id); if (!(u.speed > 0) && q) u.speed = q.v; });
+                    hoRender(data.ues, _hoSinr, cellColorMap);
+                    hoUpdateCfg();
+                    hoDrawSoon(myChart, data.cells || [], data.ues, cellColorMap);
                     myChart.data.datasets[1].data = cellData;
                     myChart.data.datasets[1].backgroundColor = cellData.map(cell => cell.backgroundColor);
                     myChart.data.datasets[1].pointStyle = cellData.map(cell => cell.pointStyle);

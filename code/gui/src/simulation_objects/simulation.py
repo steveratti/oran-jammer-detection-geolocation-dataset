@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import time
 
@@ -31,7 +32,6 @@ class Simulation:
         self.maxec = 0
         self.totalcurrec = 0
         self.simulation_status = 'on'
-        self._tx_power_cache = {}  # cell_type -> winning measurement template, or None
         if number_of_ues > 0 and number_of_cells > 0:
             self.max_x, self.max_y = self.get_charts_max_axis_value()
             self.ues, self.cells, sim_id_from_ue = self.get_simulation_data(self.number_of_ues, self.number_of_cells)
@@ -60,7 +60,7 @@ class Simulation:
             max_y = 6000
         return (int(max_x), int(max_y))
 
-    def get_simulation_data(self, number_of_ues: int, number_of_cells: int) :
+    def get_simulation_data(self, number_of_ues: int, number_of_cells: int) -> (list[Ue], list[Cell], int):
         ues = []
         cells = []
         for ue_id in range(1, number_of_ues + 1):
@@ -68,8 +68,8 @@ class Simulation:
                 ue_id=ue_id,
                 x_position=self.get_last_value_from_measurement(f'ue_position_x_{ue_id}'),
                 y_position=self.get_last_value_from_measurement(f'ue_position_y_{ue_id}'),
-                Speed_mps=self.get_last_value_from_measurement(f'ue_position_speed_{ue_id}'),
                 type=self.get_last_value_from_measurement(f'ue_position_type_{ue_id}'),
+                Speed_mps=self.get_last_value_from_measurement(f'ue_position_speed_{ue_id}'),
                 MMWave_Cell=int(self.get_last_value_from_measurement(f'ue_position_cell_{ue_id}') or 0),
                 LTE_Cell=int(1),
                 ErrTotalNbrDl=self.get_last_value_from_measurement(f'ue_{ue_id}_tb.errtotalnbrdl.1.ueid'),
@@ -117,7 +117,6 @@ class Simulation:
                 maxec = maxec,
                 totalcurrec = totalcurrec,
                 serving_sinr=self.get_last_value_from_measurement(f'cu-cp-cell-{cell_id}_l3 serving sinr'),
-                tx_power_dbm=None,  # temporarily disabled while debugging
                 ErrTotalNbrDl=self.get_last_value_from_measurement(f'du-cell-{cell_id}_tb.errtotalnbrdl.1.ueid'),
                 MeanActiveUEsDownlink=self.get_last_value_from_measurement(f'du-cell-{cell_id}_drb.meanactiveuedl'),
                 DRB_BufferSize_Qos=self.get_last_value_from_measurement(f'du-cell-{cell_id}_drb.buffersize.qos.ueid'),
@@ -171,7 +170,7 @@ class Simulation:
                     else:
                         self.sim_id = sim_id_from_ue
 
-    def get_last_value_from_measurement(self, measurement_name: str) :
+    def get_last_value_from_measurement(self, measurement_name: str) -> float | str | int | None:
         try:
             result = self.db_client.query(f'SELECT LAST("value") FROM "{measurement_name}" where time > {self.simulation_start_time}')
             if result:
@@ -200,7 +199,7 @@ class Simulation:
         except Exception as e:
             raise Exception(f"Error querying InfluxDB: {e}")
 
-    def get_first_value_from_measurement(self, measurement_name: str) :
+    def get_first_value_from_measurement(self, measurement_name: str) -> float | str | int | None:
         try:
             result = self.db_client.query(f'SELECT FIRST("value") FROM "{measurement_name}" where time > {self.simulation_start_time}')
             if result:
@@ -218,7 +217,7 @@ class Simulation:
             self,
             measurement_name: str,
             ids: int,
-            suffix='') :
+            suffix='') -> float | int | None:
         values = []
         for i in range(1, ids + 1):
             if suffix != '':
@@ -240,32 +239,6 @@ class Simulation:
         else:
             return None
 
-    def get_cell_tx_power_dbm(self, cell_id: int, cell_type: str):
-        """Resolves the TX-power InfluxDB field name ONCE per cell_type per
-        simulation run (cached on self), instead of brute-forcing every
-        candidate on every refresh cycle."""
-        prefix = 'gnbs' if cell_type == 'mmwave' else 'enbs'
-        if cell_type in self._tx_power_cache:
-            template = self._tx_power_cache[cell_type]
-            if template is None:
-                return None
-            return self.get_last_value_from_measurement(template.format(cell_id))
-
-        templates = [
-            f'{prefix}_txpower_{{}}',
-            f'{prefix}_tx_power_{{}}',
-            f'{prefix}_txpowerdbm_{{}}',
-            f'{prefix}_txpowerdb_{{}}',
-            f'{prefix}_power_{{}}',
-            f'{prefix}_txpwr_{{}}',
-        ]
-        for template in templates:
-            value = self.get_last_value_from_measurement(template.format(cell_id))
-            if value is not None:
-                self._tx_power_cache[cell_type] = template
-                return value
-        self._tx_power_cache[cell_type] = None
-        return None
     def get_cell_position_and_type(self, cell_id: int) -> (int, int, str):
         x_val = self.get_last_value_from_measurement(f'enbs_x_{cell_id}')
         if x_val:
