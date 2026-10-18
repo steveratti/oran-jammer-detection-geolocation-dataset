@@ -200,4 +200,65 @@ steveazarsh.ratti@graduate.univaq.it
 
 ▶ [Watch the live handover demo (16 s)](code/docs/handover_demo.mp4)
 
+### Changing the scenario parameters from the dashboard
+
+All simulation parameters can be changed directly in the **Scenario & Jammer Setup** form of the dashboard (`/jammer` page) before pressing **Start new**. No command line or code edit is needed; the form builds the ns-3 command line for you.
+
+![Scenario & Jammer Setup form](code/docs/scenario_setup.png)
+
+| Field | Meaning |
+|---|---|
+| **Connect to FlexRIC** / `e2TermIp` | Tick to connect the simulation to a running near-RT RIC (FlexRIC must already be running). `e2TermIp` is the RIC address (default `127.0.0.1`). |
+| **hoSinrDifference (dB)** | SINR margin of the built-in handover algorithm. Small values (e.g. 3) give frequent handovers, large values (e.g. 100) effectively disable automatic handover. |
+| **indicationPeriodicity (s)** | Period of the E2 KPM indication reports. |
+| **simTime (s)** | Simulated time. The simulation runs slower than wall-clock time, so the dashboard progresses slowly. |
+| **KPM_E2functionID / RC_E2functionID** | E2 service-model function IDs (defaults 2 for KPM, 3 for RC). |
+| **N_MmWaveEnbNodes / N_LteEnbNodes** | Number of mmWave gNBs and LTE eNBs. |
+| **N_Ues** | Number of UEs. |
+| **gNB TX Power (dBm)** | Transmit power of every gNB. |
+| **CenterFrequency (Hz) / Bandwidth (Hz)** | Carrier frequency and bandwidth. |
+| **Numerology (µ)** | 5G NR numerology (sub-carrier spacing and slot length). |
+| **IntersideDistanceUEs (m)** | Distance used to place the UEs around the map. |
+| **IntersideDistanceCells (m)** | Distance of the ring of gNBs from the centre. |
+| **MapSize (m)** | Side of the simulated area. Leave blank for the scenario default. `MapSize = 1000` together with `IntersideDistanceCells = 200` reproduces the gNB layout of the paper (Table 1). |
+| **Mobility Model** | UE mobility model (e.g. `RandomWalk2dOutdoor`). |
+| **Speed Min / Speed Max (m/s)** | UE speed range. Use realistic pedestrian/vehicular values (e.g. 3–7 m/s); very high speeds make UEs fall back to the LTE cell. |
+| **Path Loss Model / Channel Condition** | 3GPP propagation model (e.g. UMi Street Canyon) and its LOS/NLOS condition. |
+| **Shadowing** | Enables 3GPP shadowing on the main channel (off by default). |
+| **Jammer Scenario** | The ns-3 scenario file to run (drop-down of the `scratch/*.cc` files, e.g. `jammer_gnb3.cc`, `scenario-zero-with-jammer-v3.cc`, `scenario-jammer-mobile.cc`). Refresh the page to refresh the list. |
+| **Scenario flags** | Tick to pass extra scenario-specific flags. |
+| **Enable Jammers / N_Jammers** | Switch the jammers on and choose how many. |
+| **Place jammer at gNB** | For each jammer, choose a gNB (cell numbers as shown in the *Handover monitor*) and the jammer is placed 10 m next to it, or choose *manual* and type the X / Y position yourself. |
+
+The grid on the same page shows the UEs, gNBs and jammers live, coloured by the measured serving SINR, together with a *Handover monitor* that lists every attach and handover.
+
+**Manual handover demo.** A handover can also be forced through the E2SM-RC interface with the xApp in [`code/xapp_manual_ho`](code/xapp_manual_ho). The command is only executed by the E2 node that currently serves the UE. This is a dashboard demonstration and is not part of the evaluation in the paper.
+
+### Live view: simulation grid and handover monitor
+
+Once the simulation is running, the dashboard shows the network live. The refresh period is about 2 s.
+
+![Simulation grid and handover monitor](code/docs/dashboard_live_grid.png)
+
+**Simulation grid**
+
+- Circles are UEs, triangles are gNBs (cells), and red crosses with expanding rings are the jammers. The ring size scales with the jammer TX power.
+- The colour of each UE and cell shows its measured serving SINR (E2 KPM `l3_serving_sinr`): *healthy*, *degraded* (between the threshold and 0 dB) or *jammed* (below the **Jammed SINR threshold**, set at the top of the panel).
+- Each UE label shows its position and its real ns-3 speed.
+- The panel on the left shows the current gNB and jammer TX power, path-loss model, shadowing state, J/S ratio and carrier frequency.
+- The display options next to the handover monitor can be switched on and off while the simulation runs:
+  - **serving links**: line from each UE to its serving cell,
+  - **UE trails**: recent path of each UE,
+  - **LTE anchor lines**: dotted line to the LTE anchor eNB (the mmWave UEs are anchored to the LTE cell),
+  - **link labels**: label of each link, e.g. `UE1 ↔ cell 3 (LTE 1)`.
+- The grid axes fit themselves automatically to the map, the UEs and the jammers.
+
+**Handover monitor**
+
+- The header shows the number of handovers and the number of mmWave attach / fall-back events.
+- The line below shows, for every UE, the current serving mmWave cell, the LTE anchor, the serving SINR and the speed.
+- The log lists every event with a time stamp: `[mmWave attach]` (the UE connects to a mmWave cell), `[fell back to LTE]` (the UE loses the mmWave cell and returns to the LTE cell 1) and `[HANDOVER]` (the UE changes mmWave cell).
+- A magenta ring on the grid marks a UE that has just changed its serving mmWave cell (for 8 s).
+- In the example above (10 UEs, UE speed 2–4 m/s, 44 dBm gNB power, one 50 dBm barrage jammer at the centre) the simulation has just started, so the monitor still reads "no handover yet". UE1–UE5 and UE8 are already attached to mmWave cells (cells 2–5), while UE6, UE7, UE9 and UE10 are still served only by the LTE cell 1 (shown as `cell 1`, SINR "– dB"). Handovers become visible faster with a small `hoSinrDifference` and a higher UE speed, but speeds in the order of 100 m/s are unrealistic and make the UEs fall back to the LTE cell.
+
 See [`code/`](code/) for the scenario, GUI and offline analysis.
