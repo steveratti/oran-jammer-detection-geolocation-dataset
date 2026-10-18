@@ -163,7 +163,7 @@ async def start_simulation(request: Request):
         arguments = ' '
     else:
         arguments = '--enableE2FileLogging=1 '
-    mobility_scenarios = ["scenario-zero", "orange-rf-channel-reconfiguration", "early_scenario-zero-with_parallel_loging"]
+    mobility_scenarios = ["scenario-zero", "orange-rf-channel-reconfiguration", "early_scenario-zero-with_parallel_loging", "scenario-jammer-mobile"]
     if any(s in scenario for s in mobility_scenarios):
         fields += mobility_fields
     jammer_fields = ["JammerEnabled", "N_Jammers"]
@@ -181,6 +181,33 @@ async def start_simulation(request: Request):
             arguments += f"--{field}={value} "
         elif value is None and field == 'simTime':
             arguments += f"--simTime=100 "
+    # --- mobile-jammer extras: ONLY for scenario-jammer-mobile ---------------
+    if "jammer-mobile" in scenario.lower():
+        try:
+            _nj = min(int(form_data.get("N_Jammers") or 0), 4)
+        except (TypeError, ValueError):
+            _nj = 0
+        _xs, _ys = [], []
+        for _ji in range(_nj):
+            for _k in ("VX", "VY"):
+                _v = form_data.get(f"Jammer{_ji}{_k}")
+                if _v not in (None, ""):
+                    arguments += f"--Jammer{_ji}{_k}={_v} "
+            try:
+                _xs.append(float(form_data.get(f"Jammer{_ji}X")))
+                _ys.append(float(form_data.get(f"Jammer{_ji}Y")))
+            except (TypeError, ValueError):
+                pass
+        if _xs:
+            _R = 800.0   # patrol half-width around the jammer start positions [m]
+            arguments += (
+                f"--JammerBounceMinX={max(0.0, min(_xs) - _R):.0f} "
+                f"--JammerBounceMaxX={max(_xs) + _R:.0f} "
+                f"--JammerBounceMinY={max(0.0, min(_ys) - _R):.0f} "
+                f"--JammerBounceMaxY={max(_ys) + _R:.0f} ")
+    _num = str(form_data.get("Numerology") or "")
+    if _num in ("2", "3"):
+        arguments += f"--ns3::MmWavePhyMacCommon::Numerology=NrNumerology{_num} "
     # gNBTxPower: translate to ns-3 Config::SetDefault CLI form.
     # --ns3::MmWaveEnbPhy::TxPower=<dBm> is picked up by ns-3's
     # CommandLine::Parse() for ANY scenario — no .cc edits needed.

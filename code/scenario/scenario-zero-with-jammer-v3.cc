@@ -483,6 +483,7 @@ main(int argc, char *argv[]) {
     // Command line arguments
     CommandLine cmd;
     bool   JammerEnabled = false;
+    bool   ShadowingEnabled = false;
     int    N_Jammers     = 0;
     const int MAX_JAMMERS = 4;
     int    JammerType[MAX_JAMMERS]         = {0, 0, 0, 0};
@@ -494,6 +495,7 @@ main(int argc, char *argv[]) {
     double JammerPartialRatio[MAX_JAMMERS] = {1, 1, 1, 1};
     double JammerDutyCycle[MAX_JAMMERS]    = {1, 1, 1, 1};
     cmd.AddValue("JammerEnabled", "Enable jammer(s)", JammerEnabled);
+    cmd.AddValue("ShadowingEnabled", "Enable 3GPP shadowing on the main channel", ShadowingEnabled);
     cmd.AddValue("N_Jammers", "Number of jammers 0..4", N_Jammers);
     cmd.AddValue("Jammer0Type", "type", JammerType[0]);
     cmd.AddValue("Jammer0X", "x", JammerX[0]);
@@ -688,7 +690,7 @@ main(int argc, char *argv[]) {
     Config::SetDefault("ns3::LteEnbRrc::SecondaryCellHandoverMode", StringValue(handoverMode));
     Config::SetDefault("ns3::LteEnbRrc::HoSinrDifference", DoubleValue(hoSinrDifference));
     Config::SetDefault("ns3::ThreeGppPropagationLossModel::Frequency",DoubleValue(3.5e9));
-    Config::SetDefault("ns3::ThreeGppPropagationLossModel::ShadowingEnabled",BooleanValue(false));
+    Config::SetDefault("ns3::ThreeGppPropagationLossModel::ShadowingEnabled",BooleanValue(ShadowingEnabled));
     Config::SetDefault("ns3::MmWaveEnbPhy::DlSinrWithJammers",
                        BooleanValue(JammerEnabled && N_Jammers > 0));
     // Carrier bandwidth in Hz
@@ -967,7 +969,10 @@ main(int argc, char *argv[]) {
 
     int nodecount = int(NodeList::GetNNodes());
     // NS_LOG_UNCOND ("number of nodes: " << nodecount);
-    int UE_iterator = nodecount - int(nUeNodes);
+    // UE node ids are contiguous; jammer node(s) are created AFTER the UEs, so
+    // nodecount - nUeNodes is off by N_Jammers and PrintPosition reads past the node list.
+    int UE_iterator = int(ueNodes.Get(0)->GetId());
+    (void) nodecount;
 
     for (int i = 0; i < numPrints; i++) {
         Simulator::Schedule(Seconds(i * simTime / numPrints), &PrintGnuplottableEnbListToFile, t_startTime_simid);

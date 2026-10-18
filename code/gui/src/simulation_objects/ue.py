@@ -10,7 +10,6 @@ class Ue:
     type: str
     LTE_Cell: int
     MMWave_Cell: int
-    Speed_mps: Optional[float] = None
     ErrTotalNbrDl: Optional[float] = None
     DRB_BufferSize_Qos: Optional[float] = None
     RRU_PrbUsedDl: Optional[float] = None
@@ -33,3 +32,4 @@ class Ue:
     L3neighSINR_dB: Optional[float] = None
     L3neighSINR_CellId: Optional[float] = None
     DRB_Estab_Succ_5QI: Optional[float] = None
+    Speed_mps: Optional[float] = None
