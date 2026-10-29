@@ -187,7 +187,7 @@ analysis, which is not part of this repository; the simulation part does not dep
 ## Citation
 
 The paper was accepted for publication in *Sensors* (MDPI, ISSN 1424-8220) on 27 October 2026.
-Volume, article number and DOI will be added here when the paper is published. If you use this
+Published on 29 October 2026: Sensors 26(21), 6859, [doi:10.3390/s26216859](https://doi.org/10.3390/s26216859). If you use this
 dataset or code, please cite:
 
 ```bibtex
