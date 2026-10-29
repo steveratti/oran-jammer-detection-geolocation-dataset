@@ -4,7 +4,7 @@ Dataset and simulation code for the manuscript
 
 > S. A. Ratti, A. Piccioni, F. Graziosi, D. Cassioli, A. Marotta,
 > **"An O-RAN-Native xApp Framework for Jammer Detection and Geolocation"**,
-> MDPI *Sensors* (manuscript sensors-4613690, accepted on 27 October 2026).
+> MDPI *Sensors*, vol. 26, no. 21, art. 6859, 2026. DOI: [10.3390/s26216859](https://doi.org/10.3390/s26216859)
 
 The data were generated with **ns-O-RAN** (ns-3 mmWave module with O-RAN E2 support) extended with a
 downlink jamming model. They contain the E2 KPM reports, the per-UE L3 SINR, the UE trajectories and the
@@ -196,7 +196,10 @@ dataset or code, please cite:
   title   = {An {O-RAN}-Native {xApp} Framework for Jammer Detection and Geolocation},
   journal = {Sensors},
   year    = {2026},
-  note    = {Accepted 27 October 2026, manuscript sensors-4613690}
+  volume  = {26},
+  number  = {21},
+  pages   = {6859},
+  doi     = {10.3390/s26216859}
 }
 ```
 
