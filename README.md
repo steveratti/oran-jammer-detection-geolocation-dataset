@@ -20,8 +20,14 @@ UE localization methods can be evaluated offline.
 | [Release v2.0](https://github.com/steveratti/oran-jammer-detection-geolocation-dataset/releases/tag/v2.0) | **Dataset of the revised manuscript**: 8 archives, 30 Monte Carlo runs per configuration, both scenarios (≈ 5.7 GB) |
 | `simulation/` | ns-3 scenario, modified ns-3 source files and run scripts used to generate the dataset |
 | `v1_original_submission/` | Data of the original submission (single realization per scenario), kept for reference |
+| [Zenodo record](https://doi.org/10.5281/zenodo.24321585) | The same 8 archives, archived with a DOI |
 
 The archives are distributed as release assets because they exceed the GitHub file-size limit.
+They are also archived on Zenodo, which gives them a DOI and long-term preservation:
+[10.5281/zenodo.24321585](https://doi.org/10.5281/zenodo.24321585) always resolves to the
+latest version, and version 2.0 is [10.5281/zenodo.24321586](https://doi.org/10.5281/zenodo.24321586).
+The Zenodo archives were built again from the same simulation output rather than copied, so
+their checksums differ from the ones in the release assets while the files inside are the same.
 
 ---
 
@@ -200,6 +206,20 @@ dataset or code, please cite:
   number  = {21},
   pages   = {6859},
   doi     = {10.3390/s26216859}
+}
+```
+
+If you cite the dataset itself, please use the Zenodo record:
+
+```bibtex
+@dataset{ratti2026jammerdata,
+  author    = {Ratti, Steve Azarsh and Piccioni, Alex and Graziosi, Fabio and
+               Cassioli, Dajana and Marotta, Andrea},
+  title     = {{O-RAN} Jammer Detection and Geolocation: Dataset and Simulation Code},
+  year      = {2026},
+  publisher = {Zenodo},
+  version   = {2.0},
+  doi       = {10.5281/zenodo.24321586}
 }
 ```
 
